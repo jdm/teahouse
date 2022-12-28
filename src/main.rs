@@ -148,9 +148,9 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
     match entity {
         EntityType::Player => {
             commands.spawn((Player, movable, sprite))
-                /*.with_children(|parent| {
+                .with_children(|parent| {
                     parent.spawn(Camera2dBundle::default());
-                })*/;
+                });
         }
         EntityType::Customer => {
             commands.spawn((Customer, movable, sprite));
@@ -164,6 +164,14 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
 static MAP: &[&str] = &[
     ".................................................",
     ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
     ".x.............................................x.",
     ".x.............................................x.",
     ".x.............................................x.",
@@ -182,19 +190,14 @@ static MAP: &[&str] = &[
     ".x.............................................x.",
     ".x.............................................x.",
     ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
+    ".x.............................................x.",
     ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
     ".................................................",
-];
-
-static MAP2: &[&str] = &[
-    "xxxxxxxxxxxxxxxxxx",
-    "x.........xx.....x",
-    "x.........xx.....x",
-    "x................x",
-    "x.....C..........x",
-    "x.......xxxxxx...x",
-    "x..........P.....x",
-    "xxxxxxxxxxxxxxxxxx",
 ];
 
 #[derive(Default, PartialEq, Debug)]
@@ -310,9 +313,7 @@ fn setup(
     mut _meshes: ResMut<Assets<Mesh>>,
     mut _materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let map = read_map(MAP2);
-
-    commands.spawn(Camera2dBundle::default());
+    let map = read_map(MAP);
 
     for (entity_type, pos) in &map.entities {
         let size = MapSize { width: 1, height: 1 };
