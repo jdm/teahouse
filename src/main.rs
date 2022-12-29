@@ -322,7 +322,7 @@ fn pathfind_to_target(
 fn run_cat(
     mut cat: Query<(Entity, &mut Cat, Option<&PathfindTarget>, &mut Transform)>,
     cat_bed: Query<(Entity, &CatBed)>,
-    player: Query<(Entity, &Player)>,
+    humans: Query<Entity, Or<(With<Player>, With<Customer>)>>,
     time: Res<Time>,
     mut commands: Commands,
 ) {
@@ -345,9 +345,10 @@ fn run_cat(
         transform.scale = Vec2::splat(1.0).extend(0.);
         println!("setting target entity");
         cat.state = CatState::MovingToEntity;
-        let (player_entity, _) = player.single();
+        let mut rng = rand::thread_rng();
+        let human_entity = humans.iter().choose(&mut rng).unwrap();
         commands.entity(entity).insert(PathfindTarget {
-            target: player_entity,
+            target: human_entity,
             next_point: None,
             exact: false,
             current_goal: MapPos { x: 0, y: 0 },
