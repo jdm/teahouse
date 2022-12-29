@@ -24,6 +24,7 @@ fn main() {
         .add_system(select_pathfinding_targets)
         .add_system(pathfind)
         .add_system(keyboard_input)
+        .add_system(debug_keys)
         .add_system(bevy::window::close_on_esc)
         .add_event::<CollisionEvent>()
         .add_event::<PathfindEvent>()
@@ -69,6 +70,9 @@ impl Default for Customer {
 
 #[derive(Component)]
 struct Prop;
+
+#[derive(Component)]
+struct Door;
 
 #[derive(Component)]
 struct Chair {
@@ -270,22 +274,40 @@ fn keyboard_input(
     }
 }
 
+fn debug_keys(
+    keys: Res<Input<KeyCode>>,
+    q: Query<&Transform, With<Door>>,
+    mut commands: Commands,
+    map: Res<Map>,
+) {
+    if keys.just_released(KeyCode::C) {
+        let transform = q.iter().next().unwrap();
+        let mut door_pos = transform_to_map_pos(&transform, &map);
+        door_pos.x += 1;
+        let screen_rect = map_to_screen(&door_pos, &MapSize { width: 1, height: 1 }, &map);
+
+        spawn_sprite(EntityType::Customer, screen_rect, &mut commands);
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum EntityType {
     Customer,
     Player,
     Prop,
-    Chair,
+    Chair(MapPos),
+    Door,
 }
 
-fn spawn_sprite(entity: EntityType, rect: ScreenRect, map_pos: MapPos, commands: &mut Commands) {
+fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
     let pos = Vec2::new(rect.x, rect.y);
     let size = Vec2::new(rect.w, rect.h);
     let color = match entity {
         EntityType::Player => Color::rgb(0.25, 0.25, 0.75),
         EntityType::Customer => Color::rgb(0.0, 0.25, 0.0),
         EntityType::Prop => Color::rgb(0.25, 0.15, 0.0),
-        EntityType::Chair => Color::rgb(0.15, 0.05, 0.0),
+        EntityType::Chair(..) => Color::rgb(0.15, 0.05, 0.0),
+        EntityType::Door => Color::rgb(0.6, 0.2, 0.2),
     };
     let sprite = SpriteBundle {
         sprite: Sprite {
@@ -307,14 +329,17 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, map_pos: MapPos, commands:
         EntityType::Customer => {
             commands.spawn((Customer::default(), movable, sprite));
         }
-        EntityType::Chair => {
+        EntityType::Chair(pos) => {
             commands.spawn((Chair {
-                pos: map_pos,
+                pos,
                 occupied: false,
             }, sprite));
         }
         EntityType::Prop => {
             commands.spawn((Prop, movable, sprite));
+        }
+        EntityType::Door => {
+            commands.spawn((Door, movable, sprite));
         }
     };
 }
@@ -327,9 +352,9 @@ static MAP: &[&str] = &[
     ".x.........xc..................................x.",
     ".x........cxxx.................................x.",
     ".x.........xxxc................................x.",
-    ".x..........c..................................x.",
+    ".D..........c..................................x.",
     ".x....xxx......................................x.",
-    ".x.....C.......................................x.",
+    ".x.............................................x.",
     ".x.............................................x.",
     ".x.....................P.......................x.",
     ".x.............................................x.",
@@ -362,6 +387,7 @@ struct Map {
     entities: Vec<(EntityType, MapPos)>,
     props: Vec<(MapSize, MapPos)>,
     chairs: Vec<MapPos>,
+    doors: Vec<MapPos>,
     width: usize,
     height: usize,
 }
@@ -382,6 +408,8 @@ fn read_map(data: &[&str]) -> Map {
                 map.entities.push((EntityType::Customer, MapPos { x, y }));
             } else if ch == 'c' {
                 map.chairs.push(MapPos { x, y });
+            } else if ch == 'D' {
+                map.doors.push(MapPos { x, y });
             } else if ch == 'x' {
                 let mut length = 1;
                 while let Some((_, 'x')) = chars.peek() {
@@ -469,12 +497,19 @@ fn setup(
     for pos in &map.chairs {
         let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
         spawn_sprite(
-            EntityType::Chair,
+            EntityType::Chair(*pos),
             rect,
-            *pos,
             &mut commands,
         )
-        
+    }
+
+    for pos in &map.doors {
+        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
+        spawn_sprite(
+            EntityType::Door,
+            rect,
+            &mut commands,
+        )
     }
 
     for (size, pos) in &map.props {
@@ -482,7 +517,6 @@ fn setup(
         spawn_sprite(
             EntityType::Prop,
             rect,
-            *pos,
             &mut commands,
         )
     }
@@ -493,7 +527,6 @@ fn setup(
         spawn_sprite(
             *entity_type,
             rect,
-            *pos,
             &mut commands,
         );
     }
