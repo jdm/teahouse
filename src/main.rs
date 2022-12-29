@@ -89,9 +89,10 @@ fn select_pathfinding_targets(
 ) {
     for (entity, mut customer, mut movable, mut transform) in &mut q {
         if customer.goal.is_none() && customer.state == CustomerState::LookingForChair {
+            // FIXME: if goal fails, should choose another.
             for chair in &chairs {
                 if !chair.occupied {
-                    println!("giving customer a goal: {:?}", chair.pos);
+                    debug!("giving customer a goal: {:?}", chair.pos);
                     pathfind_events.send(PathfindEvent {
                         customer: entity,
                         destination: chair.pos,
@@ -102,9 +103,9 @@ fn select_pathfinding_targets(
         } else if let Some(point) = customer.path.as_ref().and_then(|path| path.first().cloned()) {
             let current_point = transform_to_map_pos(&transform, &map);
             let ideal_point = map_to_screen(&current_point, &MapSize { width: 1, height: 1 }, &map);
-            println!("screen point: {:?}, current point: {:?}, ideal point: {:?}, next goal: {:?}", transform.translation, current_point, ideal_point, point);
+            debug!("screen point: {:?}, current point: {:?}, ideal point: {:?}, next goal: {:?}", transform.translation, current_point, ideal_point, point);
             if current_point == point {
-                println!("reached target point, resetting");
+                debug!("reached target point, resetting");
                 customer.path.as_mut().unwrap().remove(0);
                 transform.translation = Vec2::new(ideal_point.x, ideal_point.y).extend(0.);
                 movable.speed = Vec2::ZERO;
@@ -122,7 +123,7 @@ fn select_pathfinding_targets(
             }
         } else if let Some(goal) = customer.goal.clone() {
             let current_point = transform_to_map_pos(&transform, &map);
-            println!("current point: {:?}, terminal goal: {:?}", current_point, goal);
+            debug!("current point: {:?}, terminal goal: {:?}", current_point, goal);
             assert_eq!(current_point, goal);
             customer.path = None;
             customer.goal = None;
@@ -172,9 +173,9 @@ fn pathfind(
             let start_grid = basic_pathfinding::coord::Coord::new(start.x as i32, start.y as i32);
             let end = basic_pathfinding::coord::Coord::new(ev.destination.x as i32, ev.destination.y as i32);
             let path = basic_pathfinding::pathfinding::find_path(&grid, start_grid, end, Default::default());
-            println!("path from {:?} to {:?}: {:?}", start, ev.destination, path);
+            debug!("path from {:?} to {:?}: {:?}", start, ev.destination, path);
             if path.is_none() {
-                println!("no path to goal!");
+                debug!("no path to goal!");
                 break;
             }
             customer.goal = Some(ev.destination);
@@ -209,7 +210,7 @@ fn check_for_collisions(
 
             let collision = collide(adjusted, movable.size, transform2.translation, movable2.size);
             if collision.is_some() {
-                println!("collision for {:?} and {:?}", moving, fixed);
+                debug!("collision for {:?} and {:?}", moving, fixed);
                 collision_events.send(CollisionEvent {
                     moving: moving,
                     _fixed: fixed,
@@ -321,9 +322,9 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, map_pos: MapPos, commands:
 static MAP: &[&str] = &[
     ".................................................",
     ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
-    ".x.............................................x.",
-    ".x.............................................x.",
-    ".x..........c..................................x.",
+    ".x.........x...................................x.",
+    ".x.........x...................................x.",
+    ".x.........xc..................................x.",
     ".x........cxxx.................................x.",
     ".x.........xxxc................................x.",
     ".x..........c..................................x.",

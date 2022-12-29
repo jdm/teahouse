@@ -3,6 +3,9 @@ name = "teahouse"
 version = "0.1.0"
 edition = "2021"
 
+[patch.crates-io]
+basic-pathfinding = { git = "https://github.com/jdm/basic-pathfinding", branch = "iterative" }
+
 [dependencies]
 bevy = "0.9"
 basic-pathfinding = "0.2"
