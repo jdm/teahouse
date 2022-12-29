@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use bevy::time::FixedTimestep;
+use rand_derive2::RandGen;
+use std::collections::HashMap;
 use std::default::Default;
+use std::time::Duration;
 
 // Defines the amount of time that should elapse between each physics step.
 const TIME_STEP: f32 = 1.0 / 60.0;
@@ -21,6 +24,7 @@ fn main() {
 
         )
         .insert_resource(map)
+        .add_system(highlight_interactable)
         .add_system(select_pathfinding_targets)
         .add_system(pathfind)
         .add_system(keyboard_input)
@@ -29,6 +33,19 @@ fn main() {
         .add_event::<CollisionEvent>()
         .add_event::<PathfindEvent>()
         .run();
+}
+
+#[derive(Hash, RandGen, Copy, Clone, PartialEq, Eq, Debug)]
+enum Ingredient {
+    BlackTea,
+    OolongTea,
+    Chai,
+    CitrusPeel,
+    MintLeaf,
+    Sugar,
+    Honey,
+    Milk,
+    Lemon,
 }
 
 struct CollisionEvent {
@@ -42,8 +59,16 @@ struct Movable {
     size: Vec2,
 }
 
+#[derive(Component, Default)]
+struct Player {
+    carrying: HashMap<Ingredient, u32>,
+}
+
 #[derive(Component)]
-struct Player;
+struct Tea {
+    weight: Option<u32>,
+    steeped_for: Option<Duration>,
+}
 
 #[derive(PartialEq)]
 enum CustomerState {
@@ -68,8 +93,35 @@ impl Default for Customer {
     }
 }
 
+
+#[derive(Component)]
+struct Interactable {
+    highlight: Color,
+    previous: Option<Color>,
+    colliding: bool,
+}
+
+impl Default for Interactable {
+    fn default() -> Self {
+        Self {
+            highlight: Color::BLACK,
+            previous: None,
+            colliding: false,
+        }
+    }
+}
+
 #[derive(Component)]
 struct Prop;
+
+#[derive(Component)]
+struct TeaStash {
+    ingredient: Ingredient,
+    amount: u32,
+}
+
+#[derive(Component)]
+struct Stove;
 
 #[derive(Component)]
 struct Door;
@@ -249,11 +301,38 @@ const CUSTOMER_SPEED: f32 = 25.0;
 const SPEED: f32 = 150.0;
 const TILE_SIZE: f32 = 25.0;
 
+fn highlight_interactable(
+    player: Query<(&Transform, &Movable), With<Player>>,
+    mut interactable: Query<(&mut Interactable, &Transform, &mut Sprite, &Movable)>,
+) {
+    let (player_transform, player_movable) = player.single();
+
+    for (mut interactable, transform, mut sprite, movable) in interactable.iter_mut() {
+        let collision = collide(
+            transform.translation,
+            movable.size,
+            player_transform.translation,
+            player_movable.size * 1.5,
+        );
+        if collision.is_some() {
+            if interactable.previous.is_none() {
+                interactable.previous = Some(sprite.color);
+                sprite.color = interactable.highlight;
+            }
+            interactable.colliding = true;
+        } else if collision.is_none() && interactable.previous.is_some() {
+            sprite.color = interactable.previous.take().unwrap();
+            interactable.colliding = false;
+        }
+    }
+}
+
 fn keyboard_input(
     keys: Res<Input<KeyCode>>,
-    mut q: Query<(&Player, &mut Movable)>,
+    mut q: Query<(&mut Player, &mut Movable)>,
+    mut interactables: Query<(&mut TeaStash, &Interactable)>,
 ) {
-    let (_player, mut movable) = q.single_mut();
+    let (mut player, mut movable) = q.single_mut();
 
     if keys.just_pressed(KeyCode::Up) {
         movable.speed.y = SPEED;
@@ -271,6 +350,18 @@ fn keyboard_input(
     }
     if keys.any_just_released([KeyCode::Left, KeyCode::Right]) {
         movable.speed.x = 0.0;
+    }
+
+    if keys.just_released(KeyCode::X) {
+        for (mut stash, interactable) in &mut interactables {
+            if interactable.colliding {
+                stash.amount -= 1;
+                let amount = player.carrying.entry(stash.ingredient).or_insert(0);
+                *amount += 1;
+                println!("carrying: {:?}", player.carrying);
+                break;
+            }
+        }
     }
 }
 
@@ -297,6 +388,8 @@ enum EntityType {
     Prop,
     Chair(MapPos),
     Door,
+    Stove,
+    TeaStash(Ingredient, u32),
 }
 
 fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
@@ -308,6 +401,8 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         EntityType::Prop => Color::rgb(0.25, 0.15, 0.0),
         EntityType::Chair(..) => Color::rgb(0.15, 0.05, 0.0),
         EntityType::Door => Color::rgb(0.6, 0.2, 0.2),
+        EntityType::Stove => Color::rgb(0.8, 0.8, 0.8),
+        EntityType::TeaStash(..) => Color::rgb(0.3, 0.3, 0.3),
     };
     let sprite = SpriteBundle {
         sprite: Sprite {
@@ -321,7 +416,7 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
     let movable = Movable { speed: Vec2::ZERO, size: size };
     match entity {
         EntityType::Player => {
-            commands.spawn((Player, movable, sprite))
+            commands.spawn((Player::default(), movable, sprite))
                 .with_children(|parent| {
                     parent.spawn(Camera2dBundle::default());
                 });
@@ -341,22 +436,38 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         EntityType::Door => {
             commands.spawn((Door, movable, sprite));
         }
+        EntityType::Stove => {
+            commands.spawn((
+                Stove,
+                Interactable { highlight: Color::rgb(1., 1., 1.), ..default() },
+                movable,
+                sprite,
+            ));
+        }
+        EntityType::TeaStash(ingredient, amount) => {
+            commands.spawn((
+                TeaStash { ingredient, amount },
+                Interactable { highlight: Color::rgb(1., 1., 1.), ..default() },
+                movable,
+                sprite,
+            ));
+        }
     };
 }
 
 static MAP: &[&str] = &[
     ".................................................",
     ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
-    ".x.........x...................................x.",
-    ".x.........x...................................x.",
-    ".x.........xc..................................x.",
-    ".x........cxxx.................................x.",
-    ".x.........xxxc................................x.",
-    ".D..........c..................................x.",
-    ".x....xxx......................................x.",
-    ".x.............................................x.",
-    ".x.............................................x.",
-    ".x.....................P.......................x.",
+    ".x....................................xxsssxxxxx.",
+    ".x...............................xx...........tx.",
+    ".x..........c......................xxx........tx.",
+    ".x........cxxx...........c...........xxxxx....tx.",
+    ".x.........xxxc.........xx..............xxxx...x.",
+    ".D..........c..........xxxxc.......c...........x.",
+    ".x....xxx.............cxxx........xxx..........x.",
+    ".x....xxx......................cxxxxxxxc.......x.",
+    ".x................................xxx..........x.",
+    ".x.....................P...........c...........x.",
     ".x.............................................x.",
     ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
     ".................................................",
@@ -388,6 +499,8 @@ struct Map {
     props: Vec<(MapSize, MapPos)>,
     chairs: Vec<MapPos>,
     doors: Vec<MapPos>,
+    stoves: Vec<MapPos>,
+    tea_stashes: Vec<MapPos>,
     width: usize,
     height: usize,
 }
@@ -410,6 +523,10 @@ fn read_map(data: &[&str]) -> Map {
                 map.chairs.push(MapPos { x, y });
             } else if ch == 'D' {
                 map.doors.push(MapPos { x, y });
+            } else if ch == 's' {
+                map.stoves.push(MapPos { x, y });
+            } else if ch == 't' {
+                map.tea_stashes.push(MapPos { x, y });
             } else if ch == 'x' {
                 let mut length = 1;
                 while let Some((_, 'x')) = chars.peek() {
@@ -507,6 +624,24 @@ fn setup(
         let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
         spawn_sprite(
             EntityType::Door,
+            rect,
+            &mut commands,
+        )
+    }
+
+    for pos in &map.stoves {
+        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
+        spawn_sprite(
+            EntityType::Stove,
+            rect,
+            &mut commands,
+        )
+    }
+
+    for pos in &map.tea_stashes {
+        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
+        spawn_sprite(
+            EntityType::TeaStash(Ingredient::generate_random(), rand::random()),
             rect,
             &mut commands,
         )
