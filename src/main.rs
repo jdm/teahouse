@@ -33,7 +33,7 @@ fn main() {
         .add_system(highlight_interactable)
         .add_system(select_pathfinding_targets)
         .add_system(pathfind.after(update_pathing_grid))
-        .add_system(pathfind_to_target.after(update_pathing_grid))
+        .add_system(pathfind_to_target.after(update_pathing_grid).before(check_for_collisions))
         .add_system(keyboard_input)
         .add_system(run_cat)
         .add_system(debug_keys)
@@ -50,24 +50,20 @@ struct PathingGrid {
 }
 
 fn update_pathing_grid(
-    entities: Query<(&Movable, &Transform), Without<Prop>>,
+    entities: Query<(&Movable, &Transform, &HasSize)>,
     map: Res<Map>,
     mut grid: ResMut<PathingGrid>,
 ) {
     let mut tiles = vec![vec![1; map.width]; map.height];
-    // FIXME: query all Movable/Transform entities and convert their positions to map
-    // coords instead.
-    for prop in &map.props {
-        for y in 0..prop.0.height {
-            for x in 0..prop.0.width {
-                tiles[y + prop.1.y][x + prop.1.x] = 0;
+    // We include Movable even though it's unused to only chart the position of physical
+    // objects that block walking.
+    for (_movable, transform, sized) in &entities {
+        let point = transform_to_map_pos(&transform, &map, &sized.size);
+        for y in 0..sized.size.height {
+            for x in 0..sized.size.width {
+                tiles[point.y + y][point.x + x] = 0;
             }
         }
-    }
-    // FIXME: support more than 1x1 entities
-    for (_movable, transform) in &entities {
-        let point = transform_to_map_pos(&transform, &map);
-        tiles[point.y][point.x] = 0;
     }
 
     for line in &tiles {
@@ -104,6 +100,11 @@ struct PathfindTarget {
     target: Entity,
     next_point: Option<MapPos>,
     exact: bool,
+}
+
+#[derive(Component)]
+struct HasSize {
+    size: MapSize,
 }
 
 #[derive(Component)]
@@ -236,8 +237,8 @@ struct PathfindEvent {
 fn pathfind_to_target(
     mut set: ParamSet<(
         Query<&PathfindTarget>,
-        Query<(Entity, &Transform)>,
-        Query<(Entity, &mut PathfindTarget, &mut Transform, &mut Movable)>,
+        Query<(Entity, &Transform, &HasSize)>,
+        Query<(Entity, &mut PathfindTarget, &mut Transform, &mut Movable, &HasSize)>,
     )>,
     map: Res<Map>,
     mut commands: Commands,
@@ -249,20 +250,26 @@ fn pathfind_to_target(
     }
 
     let mut target_data = HashMap::new();
-    for (entity, transform) in &set.p1() {
+    for (entity, transform, sized) in &set.p1() {
         if !target_entities.contains(&entity) || target_data.contains_key(&entity) {
             continue;
         }
-        let target_point = transform_to_map_pos(&transform, &map);
+        let target_point = transform_to_map_pos(&transform, &map, &sized.size);
         target_data.insert(entity, target_point);
     }
 
-    for (entity, mut target, mut transform, mut movable) in &mut set.p2() {
-        let current_point = transform_to_map_pos(&transform, &map);
+    for (entity, mut target, mut transform, mut movable, sized) in &mut set.p2() {
+        let current_point = transform_to_map_pos(&transform, &map, &sized.size);
         if target.next_point.map_or(true, |point| current_point == point) {
-            reset_movable_pos(&mut transform, &mut movable, &map, current_point);
+            reset_movable_pos(&mut transform, &mut movable, &sized, &map, current_point);
 
             let target_point = target_data[&target.target];
+            // FIXME: is this necessary, or can we rely on an empty path instead?
+            if target_point == current_point {
+                commands.entity(entity).remove::<PathfindTarget>();
+                continue;
+            }
+
             let path = find_path(&grid, &map, &transform, target_point, target.exact);
             if let Some(path) = path {
                 // We have reached the goal.
@@ -276,21 +283,20 @@ fn pathfind_to_target(
                 debug!("No path to {:?} for {:?}", target.target, entity);
             }
         } else {
-            let speed = movable.entity_speed;
-            move_to_point(&mut movable, current_point, target.next_point.unwrap(), speed);
+            move_to_point(&mut movable, current_point, target.next_point.unwrap());
         }
     }
 
 }
 
 fn run_cat(
-    mut cat: Query<(Entity, &mut Cat, &mut Transform, &mut Movable, Option<&PathfindTarget>)>,
+    mut cat: Query<(Entity, &mut Cat, Option<&PathfindTarget>, &mut Transform)>,
     cat_bed: Query<(Entity, &CatBed)>,
     player: Query<(Entity, &Player)>,
     time: Res<Time>,
     mut commands: Commands,
 ) {
-    let (entity, mut cat, _cat_transform, _cat_movable, target) = cat.single_mut();
+    let (entity, mut cat, target, mut transform) = cat.single_mut();
     let mut find_entity = false;
     let mut find_bed = false;
     let mut sleep = false;
@@ -299,12 +305,15 @@ fn run_cat(
         CatState::Sleeping(ref mut timer) => {
             timer.tick(time.delta());
             find_entity = timer.finished();
+            transform.scale = Vec2::splat(time.elapsed_seconds().sin() + 0.5).extend(0.);
         }
         CatState::MovingToEntity => find_bed = target.is_none(),
         CatState::MovingToBed => sleep = target.is_none(),
     }
 
     if find_entity {
+        transform.scale = Vec2::splat(1.0).extend(0.);
+        println!("setting target entity");
         cat.state = CatState::MovingToEntity;
         let (player_entity, _) = player.single();
         commands.entity(entity).insert(PathfindTarget {
@@ -315,6 +324,7 @@ fn run_cat(
     }
 
     if find_bed {
+        println!("returning to bed");
         cat.state = CatState::MovingToBed;
         let (cat_bed_entity, _) = cat_bed.single();
         commands.entity(entity).insert(PathfindTarget {
@@ -325,11 +335,13 @@ fn run_cat(
     }
 
     if sleep {
+        println!("going to sleep for 5s");
         cat.state = CatState::Sleeping(Timer::new(Duration::from_secs(5), TimerMode::Once));
     }    
 }
 
-fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos, speed: f32) {
+fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos) {
+    let speed = movable.entity_speed;
     if next.x < current.x {
         movable.speed.x = -speed;
     } else if next.x > current.x {
@@ -347,23 +359,19 @@ fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos, speed: f3
     }
 }
 
-fn reset_movable_pos(transform: &mut Transform, movable: &mut Movable, map: &Map, pos: MapPos) {
-    let map_size = MapSize {
-        width: (movable.size.x / TILE_SIZE) as usize,
-        height: (movable.size.y / TILE_SIZE) as usize,
-    };
-    let ideal_point = map_to_screen(&pos, &map_size, &map);
+fn reset_movable_pos(transform: &mut Transform, movable: &mut Movable, sized: &HasSize, map: &Map, pos: MapPos) {
+    let ideal_point = map_to_screen(&pos, &sized.size, &map);
     transform.translation = Vec2::new(ideal_point.x, ideal_point.y).extend(0.);
     movable.speed = Vec2::ZERO;
 }
 
 fn select_pathfinding_targets(
-    mut q: Query<(Entity, &mut Customer, &mut Movable, &mut Transform)>,
+    mut q: Query<(Entity, &mut Customer, &mut Movable, &mut Transform, &HasSize)>,
     mut chairs: Query<&mut Chair>,
     mut pathfind_events: EventWriter<PathfindEvent>,
     map: Res<Map>
 ) {
-    for (entity, mut customer, mut movable, mut transform) in &mut q {
+    for (entity, mut customer, mut movable, mut transform, sized) in &mut q {
         if customer.goal.is_none() && customer.state == CustomerState::LookingForChair {
             // FIXME: if goal fails, should choose another.
             for chair in &chairs {
@@ -377,17 +385,17 @@ fn select_pathfinding_targets(
                 }
             }
         } else if let Some(point) = customer.path.as_ref().and_then(|path| path.first().cloned()) {
-            let current_point = transform_to_map_pos(&transform, &map);
+            let current_point = transform_to_map_pos(&transform, &map, &sized.size);
             debug!("screen point: {:?}, current point: {:?}, next goal: {:?}", transform.translation, current_point, point);
             if current_point == point {
                 debug!("reached target point, resetting");
                 customer.path.as_mut().unwrap().remove(0);
-                reset_movable_pos(&mut transform, &mut movable, &map, current_point);
+                reset_movable_pos(&mut transform, &mut movable, &sized, &map, current_point);
             } else {
-                move_to_point(&mut movable, current_point, point, CUSTOMER_SPEED);
+                move_to_point(&mut movable, current_point, point);
             }
         } else if let Some(goal) = customer.goal.clone() {
-            let current_point = transform_to_map_pos(&transform, &map);
+            let current_point = transform_to_map_pos(&transform, &map, &sized.size);
             debug!("current point: {:?}, terminal goal: {:?}", current_point, goal);
             assert_eq!(current_point, goal);
             customer.path = None;
@@ -410,7 +418,8 @@ fn find_path(
     to: MapPos,
     exact: bool,
 ) -> Option<Vec<MapPos>> {
-    let start = transform_to_map_pos(from, &map);
+    // FIXME: assume that only 1x1 entities need pathfinding.
+    let start = transform_to_map_pos(from, &map, &MapSize { width: 1, height: 1 });
     let start_grid = Coord::new(start.x as i32, start.y as i32);
     let end = Coord::new(to.x as i32, to.y as i32);
     let options = SearchOpts {
@@ -453,13 +462,13 @@ fn pathfind(
 }
 
 fn check_for_collisions(
-    q: Query<(Entity, &Movable, &Transform)>,
+    q: Query<(Entity, &Movable, &Transform, &HasSize)>,
     timer: Res<Time>,
     map: Res<Map>,
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
-    for (moving, movable, transform) in &q {
-        for (fixed, movable2, transform2) in &q {
+    for (moving, movable, transform, sized) in &q {
+        for (fixed, _movable2, transform2, sized2) in &q {
             if moving == fixed {
                 continue;
             }
@@ -470,13 +479,28 @@ fn check_for_collisions(
 
             let delta = movable.speed.extend(0.);
             let adjusted = transform.translation + delta * timer.delta_seconds();
-            //FIXME: support more than 1x1.
-            //let moving_tile_pos = screen_to_map_pos(adjusted.x, adjusted.y, &map);
-            //let fixed_tile_pos = screen_to_map_pos(transform2.translation.x, transform2.translation.y, &map);
+            let moving_tile_pos = screen_to_map_pos(adjusted.x, adjusted.y, &map, &sized.size);
+            let fixed_tile_pos = screen_to_map_pos(transform2.translation.x, transform2.translation.y, &map, &sized2.size);
 
-            let collision = collide(adjusted, movable.size, transform2.translation, movable2.size);
-            if collision.is_some() {
+            //let collision = collide(adjusted, movable.size, transform2.translation, movable2.size);
+            //if collision.is_some() {
+            let mut colliding = false;
+            'exit: for y in 0..sized.size.height {
+                for x in 0..sized.size.width {
+                    for y2 in 0..sized2.size.height {
+                        for x2 in 0..sized2.size.width {
+                            if x + moving_tile_pos.x == x2 + fixed_tile_pos.x &&
+                                y + moving_tile_pos.y == y2 + fixed_tile_pos.y
+                            {
+                                colliding = true;
+                                break 'exit;
+                            }
+                        }
+                    }
+                }
+            }
             //if moving_tile_pos == fixed_tile_pos {
+            if colliding {
                 debug!("collision for {:?} and {:?}", moving, fixed);
                 collision_events.send(CollisionEvent {
                     moving: moving,
@@ -600,14 +624,15 @@ fn keyboard_input(
 
 fn debug_keys(
     keys: Res<Input<KeyCode>>,
-    q: Query<&Transform, With<Door>>,
+    q: Query<(&Transform, &HasSize), With<Door>>,
     mut commands: Commands,
     map: Res<Map>,
 ) {
     if keys.just_released(KeyCode::C) {
-        let transform = q.iter().next().unwrap();
-        let mut door_pos = transform_to_map_pos(&transform, &map);
+        let (transform, sized) = q.iter().next().unwrap();
+        let mut door_pos = transform_to_map_pos(&transform, &map, &sized.size);
         door_pos.x += 1;
+        // FIXME: assume customers are all 1x1 entities.
         let screen_rect = map_to_screen(&door_pos, &MapSize { width: 1, height: 1 }, &map);
 
         spawn_sprite(EntityType::Customer, screen_rect, &mut commands);
@@ -659,30 +684,40 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         ..default()
     };
     let movable = Movable { speed: Vec2::ZERO, size: size, entity_speed: speed };
+    let sized = HasSize {
+        size: MapSize {
+            width: (rect.w / TILE_SIZE) as usize,
+            height: (rect.h / TILE_SIZE) as usize,
+        }
+    };
     match entity {
         EntityType::Player => {
-            commands.spawn((Player::default(), movable, sprite))
+            commands.spawn((Player::default(), movable, sized, sprite))
                 .with_children(|parent| {
                     parent.spawn(Camera2dBundle::default());
                 });
         }
         EntityType::Customer => {
-            commands.spawn((Customer::default(), movable, sprite));
+            commands.spawn((Customer::default(), movable, sized, sprite));
         }
         EntityType::Cat => {
-            commands.spawn((Cat::default(), movable, sprite));
+            commands.spawn((Cat::default(), movable, sized, sprite));
         }
         EntityType::Chair(pos) => {
-            commands.spawn((Chair {
-                pos,
-                occupied: false,
-            }, sprite));
+            commands.spawn((
+                Chair {
+                    pos,
+                    occupied: false,
+                },
+                sized,
+                sprite,
+            ));
         }
         EntityType::Prop => {
-            commands.spawn((Prop, movable, sprite));
+            commands.spawn((Prop, movable, sized, sprite));
         }
         EntityType::Door => {
-            commands.spawn((Door, movable, sprite));
+            commands.spawn((Door, movable, sized, sprite));
         }
         EntityType::Stove => {
             commands.spawn((
@@ -693,6 +728,7 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
                     ..default()
                 },
                 movable,
+                sized,
                 sprite,
             ));
         }
@@ -705,6 +741,7 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
                     ..default()
                 },
                 movable,
+                sized,
                 sprite,
             ));
         }
@@ -717,12 +754,14 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
                     ..default()
                 },
                 movable,
+                sized,
                 sprite,
             ));
         }
         EntityType::CatBed => {
             commands.spawn((
                 CatBed,
+                sized,
                 sprite,
             ));
         }
@@ -730,21 +769,19 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
 }
 
 static MAP: &[&str] = &[
-    ".................................................",
-    ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx.",
-    ".xb....................................xsssxxxxx.",
-    ".x.k.............P............................tx.",
-    ".x..........c......................xx.........tx.",
-    ".x........cxxx...........c...........xxxxx....tx.",
-    ".x.........xxxc.........xx..............xxxx...x.",
-    ".D..........c..........xxxxc.......c...........x.",
-    ".x....xxx.............cxxx........xxx..........x.",
-    ".x....xxx......................cxxxxxxxc.......x.",
-    ".x................................xxx..........x.",
-    ".x.................................c...........x.",
-    ".x.............................................x.",
-    ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
-    ".................................................",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx",
+    "xb....................................xsssxxxxx",
+    "x.k.............P............................tx",
+    "x..........c......................xx.........tx",
+    "x........cxxx...........c...........xxxxx....tx",
+    "x.........xxxc.........xx..............xxxx...x",
+    "D..........c..........xxxxc.......c...........x",
+    "x....xxx.............cxxx........xxx..........x",
+    "x....xxx......................cxxxxxxxc.......x",
+    "x................................xxx..........x",
+    "x.................................c...........x",
+    "x.............................................x",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 ];
 
 #[derive(Default, PartialEq, Debug, Copy, Clone)]
@@ -855,18 +892,17 @@ fn read_map(data: &[&str]) -> Map {
     map
 }
 
-// FIXME: only valid for 1x1 entities
-fn screen_to_map_pos(x: f32, y: f32, map: &Map) -> MapPos {
-    let x = (x - TILE_SIZE / 2.) / TILE_SIZE + map.width as f32 / 2.;
-    let y = -((y + TILE_SIZE / 2.) / TILE_SIZE - map.height as f32 / 2.);
+fn screen_to_map_pos(x: f32, y: f32, map: &Map, size: &MapSize) -> MapPos {
+    let x = (x - size.width as f32 * TILE_SIZE / 2.) / TILE_SIZE + map.width as f32 / 2.;
+    let y = -((y + size.height as f32 * TILE_SIZE / 2.) / TILE_SIZE - map.height as f32 / 2.);
     assert!(x >= 0.);
     assert!(y >= 0.);
     MapPos { x: x as usize, y: y as usize }
 }
 
-fn transform_to_map_pos(transform: &Transform, map: &Map) -> MapPos {
+fn transform_to_map_pos(transform: &Transform, map: &Map, size: &MapSize) -> MapPos {
     let translation = transform.translation;
-    screen_to_map_pos(translation.x, translation.y, map)
+    screen_to_map_pos(translation.x, translation.y, map, size)
 }
 
 fn map_to_screen(pos: &MapPos, size: &MapSize, map: &Map) -> ScreenRect {
@@ -1096,21 +1132,22 @@ fn coord_conversion() {
 #[test]
 fn screen_to_map_subtile_x() {
     let map = Map { width: 8, height: 8, ..default() };
+    let size = MapSize { width: 1, height: 1 };
     let mut screen_coords = map_to_screen(
         &MapPos { x: 4, y: 4 },
-        &MapSize { width: 1, height: 1 },
+        &size,
         &map
     );
     for _ in 0..TILE_SIZE as usize {
         assert_eq!(
-            screen_to_map_pos(screen_coords.x, screen_coords.y, &map),
+            screen_to_map_pos(screen_coords.x, screen_coords.y, &map, &size),
             MapPos { x: 4, y: 4 },
         );
         screen_coords.x += 1.;
     }
 
     assert_eq!(
-        screen_to_map_pos(screen_coords.x, screen_coords.y, &map),
+        screen_to_map_pos(screen_coords.x, screen_coords.y, &map, &size),
         MapPos { x: 5, y: 4 },
     );
 }
@@ -1118,21 +1155,52 @@ fn screen_to_map_subtile_x() {
 #[test]
 fn screen_to_map_subtile_y() {
     let map = Map { width: 8, height: 8, ..default() };
+    let size = MapSize { width: 1, height: 1 };
     let mut screen_coords = map_to_screen(
         &MapPos { x: 4, y: 4 },
-        &MapSize { width: 1, height: 1 },
+        &size,
         &map
     );
     for _ in 0..TILE_SIZE as usize {
         assert_eq!(
-            screen_to_map_pos(screen_coords.x, screen_coords.y, &map),
+            screen_to_map_pos(screen_coords.x, screen_coords.y, &map, &size),
             MapPos { x: 4, y: 4 },
         );
         screen_coords.y -= 1.;
     }
 
     assert_eq!(
-        screen_to_map_pos(screen_coords.x, screen_coords.y, &map),
+        screen_to_map_pos(screen_coords.x, screen_coords.y, &map, &size),
         MapPos { x: 4, y: 5 },
+    );
+}
+
+#[test]
+fn screen_to_map_x_wide() {
+    let map = Map { width: 8, height: 8, ..default() };
+    let size = MapSize { width: 8, height: 1 };
+    let screen_coords = map_to_screen(
+        &MapPos { x: 4, y: 4 },
+        &size,
+        &map
+    );
+    assert_eq!(
+        screen_to_map_pos(screen_coords.x, screen_coords.y, &map, &size),
+        MapPos { x: 4, y: 4 },
+    );
+}
+
+#[test]
+fn screen_to_map_y_tall() {
+    let map = Map { width: 8, height: 8, ..default() };
+    let size = MapSize { width: 1, height: 8 };
+    let screen_coords = map_to_screen(
+        &MapPos { x: 4, y: 4 },
+        &size,
+        &map
+    );
+    assert_eq!(
+        screen_to_map_pos(screen_coords.x, screen_coords.y, &map, &size),
+        MapPos { x: 4, y: 4 },
     );
 }
