@@ -1,6 +1,11 @@
+use basic_pathfinding::coord::Coord;
+use basic_pathfinding::grid::{Grid, GridType};
+use basic_pathfinding::pathfinding::find_path as base_find_path;
+use basic_pathfinding::pathfinding::SearchOpts;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use bevy::time::FixedTimestep;
+//use rand::seq::IteratorRandom;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
 use std::default::Default;
@@ -15,6 +20,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup)
+        .add_system(update_pathing_grid)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
@@ -26,13 +32,53 @@ fn main() {
         .insert_resource(map)
         .add_system(highlight_interactable)
         .add_system(select_pathfinding_targets)
-        .add_system(pathfind)
+        .add_system(pathfind.after(update_pathing_grid))
+        .add_system(pathfind_to_target.after(update_pathing_grid))
         .add_system(keyboard_input)
+        .add_system(run_cat)
         .add_system(debug_keys)
         .add_system(bevy::window::close_on_esc)
         .add_event::<CollisionEvent>()
         .add_event::<PathfindEvent>()
+        .init_resource::<PathingGrid>()
         .run();
+}
+
+#[derive(Resource, Default)]
+struct PathingGrid {
+    grid: Grid,
+}
+
+fn update_pathing_grid(
+    entities: Query<(&Movable, &Transform), Without<Prop>>,
+    map: Res<Map>,
+    mut grid: ResMut<PathingGrid>,
+) {
+    let mut tiles = vec![vec![1; map.width]; map.height];
+    // FIXME: query all Movable/Transform entities and convert their positions to map
+    // coords instead.
+    for prop in &map.props {
+        for y in 0..prop.0.height {
+            for x in 0..prop.0.width {
+                tiles[y + prop.1.y][x + prop.1.x] = 0;
+            }
+        }
+    }
+    // FIXME: support more than 1x1 entities
+    for (_movable, transform) in &entities {
+        let point = transform_to_map_pos(&transform, &map);
+        tiles[point.y][point.x] = 0;
+    }
+
+    for line in &tiles {
+        println!("{:?}", line);
+    }
+    grid.grid = Grid {
+        tiles,
+        walkable_tiles: vec![1],
+        grid_type: GridType::Cardinal,
+        ..default()
+    };
 }
 
 #[derive(Hash, RandGen, Copy, Clone, PartialEq, Eq, Debug)]
@@ -53,10 +99,18 @@ struct CollisionEvent {
     _fixed: Entity,
 }
 
+#[derive(Component, Debug)]
+struct PathfindTarget {
+    target: Entity,
+    next_point: Option<MapPos>,
+    exact: bool,
+}
+
 #[derive(Component)]
 struct Movable {
     speed: Vec2,
     size: Vec2,
+    entity_speed: f32,
 }
 
 #[derive(Component, Default)]
@@ -74,6 +128,26 @@ struct TeaPot {
 enum CustomerState {
     LookingForChair,
     SittingInChair,
+}
+
+#[derive(Debug)]
+enum CatState {
+    Sleeping(Timer),
+    MovingToEntity,
+    MovingToBed,
+}
+
+#[derive(Component)]
+struct Cat {
+    state: CatState,
+}
+
+impl Default for Cat {
+    fn default() -> Self {
+        Self {
+            state: CatState::Sleeping(Timer::new(Duration::from_secs(5), TimerMode::Once))
+        }
+    }
 }
 
 #[derive(Component)]
@@ -141,6 +215,9 @@ struct Stove;
 struct Door;
 
 #[derive(Component)]
+struct CatBed;
+
+#[derive(Component)]
 struct Chair {
     pos: MapPos,
     occupied: bool,
@@ -154,6 +231,130 @@ struct Cupboard {
 struct PathfindEvent {
     customer: Entity,
     destination: MapPos,
+}
+
+fn pathfind_to_target(
+    mut set: ParamSet<(
+        Query<&PathfindTarget>,
+        Query<(Entity, &Transform)>,
+        Query<(Entity, &mut PathfindTarget, &mut Transform, &mut Movable)>,
+    )>,
+    map: Res<Map>,
+    mut commands: Commands,
+    grid: Res<PathingGrid>,
+) {
+    let mut target_entities = vec![];
+    for target in &set.p0() {
+        target_entities.push(target.target);
+    }
+
+    let mut target_data = HashMap::new();
+    for (entity, transform) in &set.p1() {
+        if !target_entities.contains(&entity) || target_data.contains_key(&entity) {
+            continue;
+        }
+        let target_point = transform_to_map_pos(&transform, &map);
+        target_data.insert(entity, target_point);
+    }
+
+    for (entity, mut target, mut transform, mut movable) in &mut set.p2() {
+        let current_point = transform_to_map_pos(&transform, &map);
+        if target.next_point.map_or(true, |point| current_point == point) {
+            reset_movable_pos(&mut transform, &mut movable, &map, current_point);
+
+            let target_point = target_data[&target.target];
+            let path = find_path(&grid, &map, &transform, target_point, target.exact);
+            if let Some(path) = path {
+                // We have reached the goal.
+                if path.is_empty() {
+                    commands.entity(entity).remove::<PathfindTarget>();
+                    continue;
+                }
+
+                target.next_point = Some(path[0]);
+            } else {
+                debug!("No path to {:?} for {:?}", target.target, entity);
+            }
+        } else {
+            let speed = movable.entity_speed;
+            move_to_point(&mut movable, current_point, target.next_point.unwrap(), speed);
+        }
+    }
+
+}
+
+fn run_cat(
+    mut cat: Query<(Entity, &mut Cat, &mut Transform, &mut Movable, Option<&PathfindTarget>)>,
+    cat_bed: Query<(Entity, &CatBed)>,
+    player: Query<(Entity, &Player)>,
+    time: Res<Time>,
+    mut commands: Commands,
+) {
+    let (entity, mut cat, _cat_transform, _cat_movable, target) = cat.single_mut();
+    let mut find_entity = false;
+    let mut find_bed = false;
+    let mut sleep = false;
+    println!("{:?} {:?}", cat.state, target);
+    match cat.state {
+        CatState::Sleeping(ref mut timer) => {
+            timer.tick(time.delta());
+            find_entity = timer.finished();
+        }
+        CatState::MovingToEntity => find_bed = target.is_none(),
+        CatState::MovingToBed => sleep = target.is_none(),
+    }
+
+    if find_entity {
+        cat.state = CatState::MovingToEntity;
+        let (player_entity, _) = player.single();
+        commands.entity(entity).insert(PathfindTarget {
+            target: player_entity,
+            next_point: None,
+            exact: false,
+        });
+    }
+
+    if find_bed {
+        cat.state = CatState::MovingToBed;
+        let (cat_bed_entity, _) = cat_bed.single();
+        commands.entity(entity).insert(PathfindTarget {
+            target: cat_bed_entity,
+            next_point: None,
+            exact: true,
+        });
+    }
+
+    if sleep {
+        cat.state = CatState::Sleeping(Timer::new(Duration::from_secs(5), TimerMode::Once));
+    }    
+}
+
+fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos, speed: f32) {
+    if next.x < current.x {
+        movable.speed.x = -speed;
+    } else if next.x > current.x {
+        movable.speed.x = speed;
+    } else {
+        movable.speed.x = 0.;
+    }
+
+    if next.y < current.y {
+        movable.speed.y = speed;
+    } else if next.y > current.y {
+        movable.speed.y = -speed;
+    } else {
+        movable.speed.y = 0.
+    }
+}
+
+fn reset_movable_pos(transform: &mut Transform, movable: &mut Movable, map: &Map, pos: MapPos) {
+    let map_size = MapSize {
+        width: (movable.size.x / TILE_SIZE) as usize,
+        height: (movable.size.y / TILE_SIZE) as usize,
+    };
+    let ideal_point = map_to_screen(&pos, &map_size, &map);
+    transform.translation = Vec2::new(ideal_point.x, ideal_point.y).extend(0.);
+    movable.speed = Vec2::ZERO;
 }
 
 fn select_pathfinding_targets(
@@ -177,24 +378,13 @@ fn select_pathfinding_targets(
             }
         } else if let Some(point) = customer.path.as_ref().and_then(|path| path.first().cloned()) {
             let current_point = transform_to_map_pos(&transform, &map);
-            let ideal_point = map_to_screen(&current_point, &MapSize { width: 1, height: 1 }, &map);
-            debug!("screen point: {:?}, current point: {:?}, ideal point: {:?}, next goal: {:?}", transform.translation, current_point, ideal_point, point);
+            debug!("screen point: {:?}, current point: {:?}, next goal: {:?}", transform.translation, current_point, point);
             if current_point == point {
                 debug!("reached target point, resetting");
                 customer.path.as_mut().unwrap().remove(0);
-                transform.translation = Vec2::new(ideal_point.x, ideal_point.y).extend(0.);
-                movable.speed = Vec2::ZERO;
+                reset_movable_pos(&mut transform, &mut movable, &map, current_point);
             } else {
-                if point.x < current_point.x {
-                    movable.speed.x = -CUSTOMER_SPEED;
-                } else if point.x > current_point.x {
-                    movable.speed.x = CUSTOMER_SPEED;
-                }
-                if point.y < current_point.y {
-                    movable.speed.y = CUSTOMER_SPEED;
-                } else if point.y > current_point.y {
-                    movable.speed.y = -CUSTOMER_SPEED;
-                }
+                move_to_point(&mut movable, current_point, point, CUSTOMER_SPEED);
             }
         } else if let Some(goal) = customer.goal.clone() {
             let current_point = transform_to_map_pos(&transform, &map);
@@ -213,52 +403,49 @@ fn select_pathfinding_targets(
     }
 }
 
+fn find_path(
+    grid: &PathingGrid,
+    map: &Map,
+    from: &Transform,
+    to: MapPos,
+    exact: bool,
+) -> Option<Vec<MapPos>> {
+    let start = transform_to_map_pos(from, &map);
+    let start_grid = Coord::new(start.x as i32, start.y as i32);
+    let end = Coord::new(to.x as i32, to.y as i32);
+    let options = SearchOpts {
+        path_adjacent: !exact,
+        ..default()
+    };
+    let path = base_find_path(&grid.grid, start_grid, end, options);
+    debug!("path from {:?} to {:?}: {:?}", start, to, path);
+    return path
+        .map(|path| {
+            path.into_iter()
+                .map(|point| MapPos { x: point.x as usize, y: point.y as usize })
+                .collect()
+        });
+}
+
 fn pathfind(
     mut pathfind_events: EventReader<PathfindEvent>,
     mut q: Query<(Entity, &mut Customer, &Transform)>,
     map: Res<Map>,
+    grid: Res<PathingGrid>,
 ) {
-    if pathfind_events.is_empty() {
-        return;
-    }
-    
-    let mut tiles = vec![vec![1; map.width]; map.height];
-    for prop in &map.props {
-        for y in 0..prop.0.height {
-            for x in 0..prop.0.width {
-                tiles[y + prop.1.y][x + prop.1.x] = 0;
-            }
-        }
-    }
-    let grid = basic_pathfinding::grid::Grid {
-        tiles,
-        walkable_tiles: vec![1],
-        grid_type: basic_pathfinding::grid::GridType::Cardinal,
-        ..default()
-    };
-    // TODO: add customer and player positions
-
     for ev in pathfind_events.iter() {
         for (entity, mut customer, transform) in &mut q {
             if entity != ev.customer {
                 continue;
             }
 
-            let start = transform_to_map_pos(transform, &map);
-            let start_grid = basic_pathfinding::coord::Coord::new(start.x as i32, start.y as i32);
-            let end = basic_pathfinding::coord::Coord::new(ev.destination.x as i32, ev.destination.y as i32);
-            let path = basic_pathfinding::pathfinding::find_path(&grid, start_grid, end, Default::default());
-            debug!("path from {:?} to {:?}: {:?}", start, ev.destination, path);
+            let path = find_path(&grid, &map, &transform, ev.destination, true);
             if path.is_none() {
                 debug!("no path to goal!");
-                break;
+                continue;
             }
             customer.goal = Some(ev.destination);
-            customer.path = Some(path
-                .unwrap()
-                .into_iter()
-                .map(|point| MapPos { x: point.x as usize, y: point.y as usize })
-                .collect());
+            customer.path = Some(path.unwrap());
             break;
         }
     }
@@ -268,6 +455,7 @@ fn pathfind(
 fn check_for_collisions(
     q: Query<(Entity, &Movable, &Transform)>,
     timer: Res<Time>,
+    map: Res<Map>,
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
     for (moving, movable, transform) in &q {
@@ -282,9 +470,13 @@ fn check_for_collisions(
 
             let delta = movable.speed.extend(0.);
             let adjusted = transform.translation + delta * timer.delta_seconds();
+            //FIXME: support more than 1x1.
+            //let moving_tile_pos = screen_to_map_pos(adjusted.x, adjusted.y, &map);
+            //let fixed_tile_pos = screen_to_map_pos(transform2.translation.x, transform2.translation.y, &map);
 
             let collision = collide(adjusted, movable.size, transform2.translation, movable2.size);
             if collision.is_some() {
+            //if moving_tile_pos == fixed_tile_pos {
                 debug!("collision for {:?} and {:?}", moving, fixed);
                 collision_events.send(CollisionEvent {
                     moving: moving,
@@ -316,7 +508,8 @@ fn move_movable(mut q: Query<(&Movable, &mut Transform)>, timer: Res<Time>) {
     }
 }
 
-const CUSTOMER_SPEED: f32 = 25.0;
+const CAT_SPEED: f32 = 25.0;
+const CUSTOMER_SPEED: f32 = 40.0;
 const SPEED: f32 = 150.0;
 const TILE_SIZE: f32 = 25.0;
 
@@ -431,11 +624,19 @@ enum EntityType {
     Stove,
     TeaStash(Ingredient, u32),
     Cupboard(u32),
+    CatBed,
+    Cat,
 }
 
 fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
     let pos = Vec2::new(rect.x, rect.y);
     let size = Vec2::new(rect.w, rect.h);
+    let speed = match entity {
+        EntityType::Player => SPEED,
+        EntityType::Customer => CUSTOMER_SPEED,
+        EntityType::Cat => CAT_SPEED,
+        _ => 0.,
+    };
     let color = match entity {
         EntityType::Player => Color::rgb(0.25, 0.25, 0.75),
         EntityType::Customer => Color::rgb(0.0, 0.25, 0.0),
@@ -445,6 +646,8 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         EntityType::Stove => Color::rgb(0.8, 0.8, 0.8),
         EntityType::TeaStash(..) => Color::rgb(0.3, 0.3, 0.3),
         EntityType::Cupboard(..) => Color::rgb(0.5, 0.35, 0.0),
+        EntityType::CatBed => Color::rgb(0., 0., 0.25),
+        EntityType::Cat => Color::BLACK,
     };
     let sprite = SpriteBundle {
         sprite: Sprite {
@@ -455,7 +658,7 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         transform: Transform::from_translation(pos.extend(0.)),
         ..default()
     };
-    let movable = Movable { speed: Vec2::ZERO, size: size };
+    let movable = Movable { speed: Vec2::ZERO, size: size, entity_speed: speed };
     match entity {
         EntityType::Player => {
             commands.spawn((Player::default(), movable, sprite))
@@ -465,6 +668,9 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         }
         EntityType::Customer => {
             commands.spawn((Customer::default(), movable, sprite));
+        }
+        EntityType::Cat => {
+            commands.spawn((Cat::default(), movable, sprite));
         }
         EntityType::Chair(pos) => {
             commands.spawn((Chair {
@@ -514,19 +720,25 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
                 sprite,
             ));
         }
+        EntityType::CatBed => {
+            commands.spawn((
+                CatBed,
+                sprite,
+            ));
+        }
     };
 }
 
 static MAP: &[&str] = &[
     ".................................................",
     ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx.",
-    ".x.....................................xsssxxxxx.",
-    ".x............................................tx.",
+    ".xb....................................xsssxxxxx.",
+    ".x.k.............P............................tx.",
     ".x..........c......................xx.........tx.",
     ".x........cxxx...........c...........xxxxx....tx.",
     ".x.........xxxc.........xx..............xxxx...x.",
     ".D..........c..........xxxxc.......c...........x.",
-    ".x....xxx.............cxxx........xxx........P.x.",
+    ".x....xxx.............cxxx........xxx..........x.",
     ".x....xxx......................cxxxxxxxc.......x.",
     ".x................................xxx..........x.",
     ".x.................................c...........x.",
@@ -564,6 +776,8 @@ struct Map {
     stoves: Vec<MapPos>,
     tea_stashes: Vec<MapPos>,
     cupboards: Vec<MapPos>,
+    cat_beds: Vec<MapPos>,
+    cats: Vec<MapPos>,
     width: usize,
     height: usize,
 }
@@ -592,6 +806,10 @@ fn read_map(data: &[&str]) -> Map {
                 map.stoves.push(MapPos { x, y });
             } else if ch == 't' {
                 map.tea_stashes.push(MapPos { x, y });
+            } else if ch == 'b' {
+                map.cat_beds.push(MapPos { x, y });
+            } else if ch == 'k' {
+                map.cats.push(MapPos { x, y });
             } else if ch == 'x' {
                 let mut length = 1;
                 while let Some((_, 'x')) = chars.peek() {
@@ -681,6 +899,24 @@ fn setup(
         let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
         spawn_sprite(
             EntityType::Chair(*pos),
+            rect,
+            &mut commands,
+        )
+    }
+
+    for pos in &map.cat_beds {
+        let rect = map_to_screen(pos, &MapSize { width: 2, height: 2 }, &map);
+        spawn_sprite(
+            EntityType::CatBed,
+            rect,
+            &mut commands,
+        )
+    }
+
+    for pos in &map.cat_beds {
+        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
+        spawn_sprite(
+            EntityType::Cat,
             rect,
             &mut commands,
         )
