@@ -5,7 +5,7 @@ use basic_pathfinding::pathfinding::SearchOpts;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use bevy::time::FixedTimestep;
-//use rand::seq::IteratorRandom;
+use rand::seq::IteratorRandom;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
 use std::default::Default;
@@ -66,9 +66,9 @@ fn update_pathing_grid(
         }
     }
 
-    for line in &tiles {
+    /*for line in &tiles {
         println!("{:?}", line);
-    }
+    }*/
     grid.grid = Grid {
         tiles,
         walkable_tiles: vec![1],
@@ -99,6 +99,7 @@ struct CollisionEvent {
 struct PathfindTarget {
     target: Entity,
     next_point: Option<MapPos>,
+    current_goal: MapPos,
     exact: bool,
 }
 
@@ -146,7 +147,7 @@ struct Cat {
 impl Default for Cat {
     fn default() -> Self {
         Self {
-            state: CatState::Sleeping(Timer::new(Duration::from_secs(5), TimerMode::Once))
+            state: CatState::Sleeping(Timer::new(Duration::from_secs(2), TimerMode::Once))
         }
     }
 }
@@ -229,6 +230,9 @@ struct Cupboard {
     teapots: u32,
 }
 
+#[derive(Component)]
+struct DebugTile;
+
 struct PathfindEvent {
     customer: Entity,
     destination: MapPos,
@@ -243,6 +247,7 @@ fn pathfind_to_target(
     map: Res<Map>,
     mut commands: Commands,
     grid: Res<PathingGrid>,
+    debug_tile: Query<(Entity, &DebugTile, &mut Sprite)>,
 ) {
     let mut target_entities = vec![];
     for target in &set.p0() {
@@ -265,13 +270,13 @@ fn pathfind_to_target(
 
             let target_point = target_data[&target.target];
             // FIXME: is this necessary, or can we rely on an empty path instead?
-            if target_point == current_point {
+            if target_point == current_point || current_point == target.current_goal {
                 commands.entity(entity).remove::<PathfindTarget>();
                 continue;
             }
 
             let path = find_path(&grid, &map, &transform, target_point, target.exact);
-            if let Some(path) = path {
+            if let Some((path, actual_target_point)) = path {
                 // We have reached the goal.
                 if path.is_empty() {
                     commands.entity(entity).remove::<PathfindTarget>();
@@ -279,6 +284,31 @@ fn pathfind_to_target(
                 }
 
                 target.next_point = Some(path[0]);
+                target.current_goal = actual_target_point;
+
+                for (debug_entity, _, _) in &debug_tile {
+                    commands.entity(debug_entity).despawn();
+                }
+
+                for point in path {
+                    let next_screen_rect = map_to_screen(&point, &MapSize { width: 1, height: 1 }, &map);
+                    let next_screen_point = Vec3::new(next_screen_rect.x, next_screen_rect.y, 0.);
+                    commands.spawn((
+                        DebugTile,
+                        SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::rgba(0.5, 0., 0., 0.2),
+                                custom_size: Some(Vec2::new(
+                                    next_screen_rect.w * 0.6,
+                                    next_screen_rect.h * 0.6,
+                                )),
+                                ..default()
+                            },
+                            transform: Transform::from_translation(next_screen_point),
+                            ..default()
+                        },
+                    ));
+                }
             } else {
                 debug!("No path to {:?} for {:?}", target.target, entity);
             }
@@ -300,7 +330,7 @@ fn run_cat(
     let mut find_entity = false;
     let mut find_bed = false;
     let mut sleep = false;
-    println!("{:?} {:?}", cat.state, target);
+    //println!("{:?} {:?}", cat.state, target);
     match cat.state {
         CatState::Sleeping(ref mut timer) => {
             timer.tick(time.delta());
@@ -320,6 +350,7 @@ fn run_cat(
             target: player_entity,
             next_point: None,
             exact: false,
+            current_goal: MapPos { x: 0, y: 0 },
         });
     }
 
@@ -331,6 +362,7 @@ fn run_cat(
             target: cat_bed_entity,
             next_point: None,
             exact: true,
+            current_goal: MapPos { x: 0, y: 0 },
         });
     }
 
@@ -417,13 +449,30 @@ fn find_path(
     from: &Transform,
     to: MapPos,
     exact: bool,
-) -> Option<Vec<MapPos>> {
+) -> Option<(Vec<MapPos>, MapPos)> {
     // FIXME: assume that only 1x1 entities need pathfinding.
     let start = transform_to_map_pos(from, &map, &MapSize { width: 1, height: 1 });
     let start_grid = Coord::new(start.x as i32, start.y as i32);
-    let end = Coord::new(to.x as i32, to.y as i32);
+
+    let exact_end = Coord::new(to.x as i32, to.y as i32);
+    let end = if exact {
+        exact_end
+    } else {
+        let mut rng = rand::thread_rng();
+        let random_adjacent = grid.grid
+            .get_adjacent(&exact_end)
+            .into_iter()
+            .filter(|point| {
+                grid.grid.is_coord_walkable(point.x, point.y)
+            })
+            .choose(&mut rng);
+        if random_adjacent.is_none() {
+            return None;
+        }
+        random_adjacent.unwrap()
+    };
     let options = SearchOpts {
-        path_adjacent: !exact,
+        path_adjacent: false,
         ..default()
     };
     let path = base_find_path(&grid.grid, start_grid, end, options);
@@ -433,7 +482,8 @@ fn find_path(
             path.into_iter()
                 .map(|point| MapPos { x: point.x as usize, y: point.y as usize })
                 .collect()
-        });
+        })
+        .map(|path| (path, MapPos { x: end.x as usize, y: end.y as usize }));
 }
 
 fn pathfind(
@@ -454,7 +504,7 @@ fn pathfind(
                 continue;
             }
             customer.goal = Some(ev.destination);
-            customer.path = Some(path.unwrap());
+            customer.path = Some(path.unwrap().0);
             break;
         }
     }
