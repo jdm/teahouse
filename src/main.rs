@@ -82,12 +82,12 @@ struct PathfindEvent {
 }
 
 fn select_pathfinding_targets(
-    mut q: Query<(Entity, &mut Customer, &mut Movable, &Transform)>,
+    mut q: Query<(Entity, &mut Customer, &mut Movable, &mut Transform)>,
     mut chairs: Query<&mut Chair>,
     mut pathfind_events: EventWriter<PathfindEvent>,
     map: Res<Map>
 ) {
-    for (entity, mut customer, mut movable, transform) in &mut q {
+    for (entity, mut customer, mut movable, mut transform) in &mut q {
         if customer.goal.is_none() && customer.state == CustomerState::LookingForChair {
             for chair in &chairs {
                 if !chair.occupied {
@@ -100,11 +100,13 @@ fn select_pathfinding_targets(
                 }
             }
         } else if let Some(point) = customer.path.as_ref().and_then(|path| path.first().cloned()) {
-            let current_point = transform_to_map_pos(transform, &map);
-            println!("current point: {:?}, next goal: {:?}", current_point, point);
+            let current_point = transform_to_map_pos(&transform, &map);
+            let ideal_point = map_to_screen(&current_point, &MapSize { width: 1, height: 1 }, &map);
+            println!("screen point: {:?}, current point: {:?}, ideal point: {:?}, next goal: {:?}", transform.translation, current_point, ideal_point, point);
             if current_point == point {
                 println!("reached target point, resetting");
                 customer.path.as_mut().unwrap().remove(0);
+                transform.translation = Vec2::new(ideal_point.x, ideal_point.y).extend(0.);
                 movable.speed = Vec2::ZERO;
             } else {
                 if point.x < current_point.x {
@@ -119,7 +121,7 @@ fn select_pathfinding_targets(
                 }
             }
         } else if let Some(goal) = customer.goal.clone() {
-            let current_point = transform_to_map_pos(transform, &map);
+            let current_point = transform_to_map_pos(&transform, &map);
             println!("current point: {:?}, terminal goal: {:?}", current_point, goal);
             assert_eq!(current_point, goal);
             customer.path = None;
@@ -128,6 +130,7 @@ fn select_pathfinding_targets(
                 if chair.pos == goal {
                     chair.occupied = true;
                     customer.state = CustomerState::SittingInChair;
+                    break;
                 }
             }
         }
@@ -147,7 +150,7 @@ fn pathfind(
     for prop in &map.props {
         for y in 0..prop.0.height {
             for x in 0..prop.0.width {
-                tiles[y][x] = 0;
+                tiles[y + prop.1.y][x + prop.1.x] = 0;
             }
         }
     }
