@@ -64,9 +64,9 @@ struct Player {
     carrying: HashMap<Ingredient, u32>,
 }
 
-#[derive(Component)]
-struct Tea {
-    weight: Option<u32>,
+#[derive(Component, Default)]
+struct TeaPot {
+    ingredients: HashMap<Ingredient, u32>,
     steeped_for: Option<Duration>,
 }
 
@@ -93,12 +93,25 @@ impl Default for Customer {
     }
 }
 
+#[derive(Component)]
+struct StatusMessage {
+    source: Option<Entity>,
+}
+
+#[derive(Bundle)]
+struct StatusMessageBundle {
+    message: StatusMessage,
+
+    #[bundle]
+    text: TextBundle,
+}
 
 #[derive(Component)]
 struct Interactable {
     highlight: Color,
     previous: Option<Color>,
     colliding: bool,
+    message: String,
 }
 
 impl Default for Interactable {
@@ -107,6 +120,7 @@ impl Default for Interactable {
             highlight: Color::BLACK,
             previous: None,
             colliding: false,
+            message: String::new(),
         }
     }
 }
@@ -130,6 +144,11 @@ struct Door;
 struct Chair {
     pos: MapPos,
     occupied: bool,
+}
+
+#[derive(Component)]
+struct Cupboard {
+    teapots: u32,
 }
 
 struct PathfindEvent {
@@ -303,36 +322,47 @@ const TILE_SIZE: f32 = 25.0;
 
 fn highlight_interactable(
     player: Query<(&Transform, &Movable), With<Player>>,
-    mut interactable: Query<(&mut Interactable, &Transform, &mut Sprite, &Movable)>,
+    mut interactable: Query<(Entity, &mut Interactable, &Transform, &mut Sprite, &Movable)>,
+    mut status: Query<(&mut StatusMessage, &mut Text)>,
 ) {
     let (player_transform, player_movable) = player.single();
+    let (mut status, mut status_text) = status.single_mut();
 
-    for (mut interactable, transform, mut sprite, movable) in interactable.iter_mut() {
+    for (entity, mut interactable, transform, mut sprite, movable) in interactable.iter_mut() {
         let collision = collide(
             transform.translation,
             movable.size,
             player_transform.translation,
-            player_movable.size * 1.5,
+            player_movable.size * 1.3,
         );
-        if collision.is_some() {
+        if collision.is_some() && status.source.is_none() {
             if interactable.previous.is_none() {
                 interactable.previous = Some(sprite.color);
                 sprite.color = interactable.highlight;
             }
             interactable.colliding = true;
+
+            status.source = Some(entity);
+            status_text.sections[0].value = interactable.message.clone();
+
         } else if collision.is_none() && interactable.previous.is_some() {
             sprite.color = interactable.previous.take().unwrap();
             interactable.colliding = false;
+
+            status.source = None;
+            status_text.sections[0].value = "".to_string();
         }
     }
 }
 
 fn keyboard_input(
     keys: Res<Input<KeyCode>>,
-    mut q: Query<(&mut Player, &mut Movable)>,
+    mut q: Query<(Entity, &mut Player, &mut Movable)>,
     mut interactables: Query<(&mut TeaStash, &Interactable)>,
+    mut cupboards: Query<(&mut Cupboard, &Interactable)>,
+    mut commands: Commands,
 ) {
-    let (mut player, mut movable) = q.single_mut();
+    let (player_entity, mut player, mut movable) = q.single_mut();
 
     if keys.just_pressed(KeyCode::Up) {
         movable.speed.y = SPEED;
@@ -359,9 +389,19 @@ fn keyboard_input(
                 let amount = player.carrying.entry(stash.ingredient).or_insert(0);
                 *amount += 1;
                 println!("carrying: {:?}", player.carrying);
-                break;
+                return;
             }
         }
+        for (mut cupboard, interactable) in &mut cupboards {
+            if interactable.colliding {
+                cupboard.teapots -= 1;
+                commands.entity(player_entity).insert(TeaPot::default());
+                println!("acquired teapot");
+                return;
+            }
+        }
+
+        //if player.
     }
 }
 
@@ -390,6 +430,7 @@ enum EntityType {
     Door,
     Stove,
     TeaStash(Ingredient, u32),
+    Cupboard(u32),
 }
 
 fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
@@ -403,6 +444,7 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         EntityType::Door => Color::rgb(0.6, 0.2, 0.2),
         EntityType::Stove => Color::rgb(0.8, 0.8, 0.8),
         EntityType::TeaStash(..) => Color::rgb(0.3, 0.3, 0.3),
+        EntityType::Cupboard(..) => Color::rgb(0.5, 0.35, 0.0),
     };
     let sprite = SpriteBundle {
         sprite: Sprite {
@@ -439,7 +481,11 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         EntityType::Stove => {
             commands.spawn((
                 Stove,
-                Interactable { highlight: Color::rgb(1., 1., 1.), ..default() },
+                Interactable {
+                    highlight: Color::rgb(1., 1., 1.),
+                    message: "Press X to toggle burner".to_string(),
+                    ..default()
+                },
                 movable,
                 sprite,
             ));
@@ -447,7 +493,23 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
         EntityType::TeaStash(ingredient, amount) => {
             commands.spawn((
                 TeaStash { ingredient, amount },
-                Interactable { highlight: Color::rgb(1., 1., 1.), ..default() },
+                Interactable {
+                    highlight: Color::rgb(1., 1., 1.),
+                    message: format!("Press X to pick up {:?}", ingredient),
+                    ..default()
+                },
+                movable,
+                sprite,
+            ));
+        }
+        EntityType::Cupboard(pots) => {
+            commands.spawn((
+                Cupboard { teapots: pots },
+                Interactable {
+                    highlight: Color::rgb(1., 1., 1.),
+                    message: "Press X to pick up teapot".to_string(),
+                    ..default()
+                },
                 movable,
                 sprite,
             ));
@@ -457,17 +519,17 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
 
 static MAP: &[&str] = &[
     ".................................................",
-    ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
-    ".x....................................xxsssxxxxx.",
-    ".x...............................xx...........tx.",
-    ".x..........c......................xxx........tx.",
+    ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx.",
+    ".x.....................................xsssxxxxx.",
+    ".x............................................tx.",
+    ".x..........c......................xx.........tx.",
     ".x........cxxx...........c...........xxxxx....tx.",
     ".x.........xxxc.........xx..............xxxx...x.",
     ".D..........c..........xxxxc.......c...........x.",
-    ".x....xxx.............cxxx........xxx..........x.",
+    ".x....xxx.............cxxx........xxx........P.x.",
     ".x....xxx......................cxxxxxxxc.......x.",
     ".x................................xxx..........x.",
-    ".x.....................P...........c...........x.",
+    ".x.................................c...........x.",
     ".x.............................................x.",
     ".xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.",
     ".................................................",
@@ -501,6 +563,7 @@ struct Map {
     doors: Vec<MapPos>,
     stoves: Vec<MapPos>,
     tea_stashes: Vec<MapPos>,
+    cupboards: Vec<MapPos>,
     width: usize,
     height: usize,
 }
@@ -521,6 +584,8 @@ fn read_map(data: &[&str]) -> Map {
                 map.entities.push((EntityType::Customer, MapPos { x, y }));
             } else if ch == 'c' {
                 map.chairs.push(MapPos { x, y });
+            } else if ch == 'B' {
+                map.cupboards.push(MapPos { x, y });
             } else if ch == 'D' {
                 map.doors.push(MapPos { x, y });
             } else if ch == 's' {
@@ -610,11 +675,21 @@ fn map_to_screen(pos: &MapPos, size: &MapSize, map: &Map) -> ScreenRect {
 fn setup(
     mut commands: Commands,
     map: Res<Map>,
+    asset_server: Res<AssetServer>,
 ) {
     for pos in &map.chairs {
         let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
         spawn_sprite(
             EntityType::Chair(*pos),
+            rect,
+            &mut commands,
+        )
+    }
+
+    for pos in &map.cupboards {
+        let rect = map_to_screen(pos, &MapSize { width: 2, height: 1 }, &map);
+        spawn_sprite(
+            EntityType::Cupboard(rand::random()),
             rect,
             &mut commands,
         )
@@ -665,6 +740,32 @@ fn setup(
             &mut commands,
         );
     }
+
+    commands.spawn(
+        StatusMessageBundle {
+            message: StatusMessage {
+                source: None,
+            },
+            text: TextBundle::from_section(
+                "",
+                TextStyle {
+                    font: asset_server.load("Lato-Medium.ttf"),
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            )
+                .with_text_alignment(TextAlignment::TOP_CENTER)
+                .with_style(Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        bottom: Val::Px(5.0),
+                        right: Val::Px(15.0),
+                        ..default()
+                    },
+                    ..default()
+                }),
+        }
+    );
 }
 
 #[test]
