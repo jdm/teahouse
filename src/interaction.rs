@@ -72,7 +72,7 @@ pub fn highlight_interactable(
 pub fn keyboard_input(
     keys: Res<Input<KeyCode>>,
     mut q: Query<(Entity, &mut Player, &mut Movable)>,
-    mut interactables: Query<(&mut TeaStash, &Interactable)>,
+    mut interactables: Query<(Entity, &mut TeaStash, &Interactable)>,
     mut cupboards: Query<(Entity, &mut Cupboard, &Interactable)>,
     customers: Query<(Entity, &Customer, &Interactable)>,
     mut cat: Query<(Entity, &Cat, &Interactable, &mut Affection)>,
@@ -104,12 +104,16 @@ pub fn keyboard_input(
     }
 
     if keys.just_released(KeyCode::X) {
-        for (mut stash, interactable) in &mut interactables {
+        for (entity, mut stash, interactable) in &mut interactables {
             if interactable.colliding {
                 stash.amount -= 1;
                 let amount = player.carrying.entry(stash.ingredient).or_insert(0);
                 *amount += 1;
-                println!("carrying: {:?}", player.carrying);
+                status_events.send(StatusEvent::timed_message(
+                    entity,
+                    format!("You take a little {:?} ({} remaining)", stash.ingredient, stash.amount),
+                    DEFAULT_EXPIRY,
+                ));
                 return;
             }
         }
@@ -180,27 +184,30 @@ pub fn keyboard_input(
 
             let mut teapot = teapot.single_mut();
 
-            let ingredients = if player.carrying.is_empty() {
-                "nothing".to_owned()
-            } else {
+            let message = if !player.carrying.is_empty() {
                 let mut ingredients = player
                     .carrying
                     .keys()
                     .map(|k| format!("{:?}", k))
                     .collect::<Vec<_>>();
+
+                teapot.water = 100;
+                teapot.ingredients = std::mem::take(&mut player.carrying);
+                teapot.steeped_at = Some(Instant::now());
+
                 ingredients.insert(0, "the".to_owned());
-                ingredients.join(" and the ")
+                let ingredients = ingredients.join(" and the ");
+                format!("You add {} to the teapot and fill it with boiling water.", ingredients)
+            } else {
+                "You need ingredients to steep before adding the water.".to_owned()
             };
-            let message = format!("You add {} to the teapot and fill it with boiling water.", ingredients);
+
             status_events.send(StatusEvent::timed_message(
                 entity,
                 message,
                 DEFAULT_EXPIRY,
             ));
 
-            teapot.water = 100;
-            teapot.ingredients = std::mem::take(&mut player.carrying);
-            teapot.steeped_at = Some(Instant::now());
         }
     }
 }

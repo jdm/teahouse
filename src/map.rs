@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use crate::entity::*;
 use crate::geom::*;
 use crate::tea::Ingredient;
+use rand::Rng;
 use std::collections::HashMap;
 
 pub static MAP: &[&str] = &[
@@ -46,6 +47,8 @@ pub fn read_map(data: &[&str]) -> Map {
         ('c', EntityType::Chair),
     ]);
 
+    let mut rng = rand::thread_rng();
+
     for (y, line) in data.iter().enumerate() {
         let mut chars = line.chars().enumerate().peekable();
         while let Some((x, ch)) = chars.next() {
@@ -59,7 +62,7 @@ pub fn read_map(data: &[&str]) -> Map {
                 map.cupboards.push(MapPos { x, y });
             } else if ch == 't' {
                 map.entities.push((
-                    EntityType::TeaStash(Ingredient::generate_random(), rand::random()),
+                    EntityType::TeaStash(Ingredient::generate_random(), rng.gen_range(1..10)),
                     MapPos { x, y },
                 ));
             } else if ch == 'b' {
