@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::cat::*;
+use crate::customer::Customer;
 use crate::geom::*;
 use crate::interaction::*;
 use crate::map::Map;
@@ -95,31 +96,6 @@ pub struct Player {
 pub struct TeaPot {
     pub ingredients: HashMap<Ingredient, u32>,
     pub steeped_for: Option<Duration>,
-}
-
-#[derive(PartialEq)]
-pub enum CustomerState {
-    LookingForChair,
-    SittingInChair,
-}
-
-#[derive(Component)]
-pub struct Customer {
-    pub goal: Option<MapPos>,
-    pub path: Option<Vec<MapPos>>,
-    pub state: CustomerState,
-    pub conversation: Vec<String>,
-}
-
-impl Default for Customer {
-    fn default() -> Self {
-        Self {
-            goal: None,
-            path: None,
-            state: CustomerState::LookingForChair,
-            conversation: vec![],
-        }
-    }
 }
 
 #[derive(Hash, RandGen, Copy, Clone, PartialEq, Eq, Debug)]

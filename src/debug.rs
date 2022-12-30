@@ -4,7 +4,9 @@ use crate::geom::*;
 use crate::map::*;
 
 #[derive(Component)]
-pub struct DebugTile;
+pub struct DebugTile {
+    pub for_entity: Entity,
+}
 
 pub fn debug_keys(
     keys: Res<Input<KeyCode>>,

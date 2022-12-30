@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use crate::entity::*;
-use crate::geom::*;
-use crate::pathfinding::*;
+use crate::customer::Customer;
+use crate::entity::{CatBed, Player};
+use crate::pathfinding::PathfindTarget;
 use rand::seq::IteratorRandom;
 use std::time::Duration;
 
@@ -53,24 +53,14 @@ pub fn run_cat(
         cat.state = CatState::MovingToEntity;
         let mut rng = rand::thread_rng();
         let human_entity = humans.iter().choose(&mut rng).unwrap();
-        commands.entity(entity).insert(PathfindTarget {
-            target: human_entity,
-            next_point: None,
-            exact: false,
-            current_goal: MapPos { x: 0, y: 0 },
-        });
+        commands.entity(entity).insert(PathfindTarget::new(human_entity, false));
     }
 
     if find_bed {
         println!("returning to bed");
         cat.state = CatState::MovingToBed;
         let (cat_bed_entity, _) = cat_bed.single();
-        commands.entity(entity).insert(PathfindTarget {
-            target: cat_bed_entity,
-            next_point: None,
-            exact: true,
-            current_goal: MapPos { x: 0, y: 0 },
-        });
+        commands.entity(entity).insert(PathfindTarget::new(cat_bed_entity, true));
     }
 
     if sleep {

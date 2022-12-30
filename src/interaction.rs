@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
 use crate::cat::Cat;
+use crate::customer::Customer;
 use crate::dialog::show_message_box;
 use crate::entity::*;
 use crate::movable::*;

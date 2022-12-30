@@ -4,7 +4,6 @@ use basic_pathfinding::grid::{Grid, GridType};
 use basic_pathfinding::pathfinding::find_path as base_find_path;
 use basic_pathfinding::pathfinding::SearchOpts;
 use crate::debug::*;
-use crate::entity::{Customer, CustomerState, Chair};
 use crate::geom::*;
 use crate::movable::*;
 use crate::map::Map;
@@ -47,10 +46,21 @@ pub fn update_pathing_grid(
 
 #[derive(Component, Debug)]
 pub struct PathfindTarget {
-    pub target: Entity,
-    pub next_point: Option<MapPos>,
-    pub current_goal: MapPos,
-    pub exact: bool,
+    target: Entity,
+    next_point: Option<MapPos>,
+    current_goal: MapPos,
+    exact: bool,
+}
+
+impl PathfindTarget {
+    pub fn new(target: Entity, exact: bool) -> Self {
+        Self {
+            target,
+            next_point: None,
+            current_goal: MapPos { x: 0, y: 0 },
+            exact
+        }
+    }
 }
 
 pub fn pathfind_to_target(
@@ -101,15 +111,17 @@ pub fn pathfind_to_target(
                 target.next_point = Some(path[0]);
                 target.current_goal = actual_target_point;
 
-                for (debug_entity, _, _) in &debug_tile {
-                    commands.entity(debug_entity).despawn();
+                for (debug_entity, debug_tile, _) in &debug_tile {
+                    if debug_tile.for_entity == entity {
+                        commands.entity(debug_entity).despawn();
+                    }
                 }
 
                 for point in path {
                     let next_screen_rect = map_to_screen(&point, &MapSize { width: 1, height: 1 }, &map);
                     let next_screen_point = Vec3::new(next_screen_rect.x, next_screen_rect.y, 0.);
                     commands.spawn((
-                        DebugTile,
+                        DebugTile { for_entity: entity },
                         SpriteBundle {
                             sprite: Sprite {
                                 color: Color::rgba(0.5, 0., 0., 0.2),
@@ -131,7 +143,6 @@ pub fn pathfind_to_target(
             move_to_point(&mut movable, current_point, target.next_point.unwrap());
         }
     }
-
 }
 
 fn find_path(
@@ -175,75 +186,4 @@ fn find_path(
                 .collect()
         })
         .map(|path| (path, MapPos { x: end.x as usize, y: end.y as usize }));
-}
-
-pub fn pathfind(
-    mut pathfind_events: EventReader<PathfindEvent>,
-    mut q: Query<(&mut Customer, &Transform)>,
-    map: Res<Map>,
-    grid: Res<PathingGrid>,
-) {
-    for ev in pathfind_events.iter() {
-        let (mut customer, transform) = q.get_mut(ev.customer).unwrap();
-
-        let path = find_path(&grid, &map, &transform, ev.destination, true);
-        if path.is_none() {
-            debug!("no path to goal!");
-            continue;
-        }
-        customer.goal = Some(ev.destination);
-        customer.path = Some(path.unwrap().0);
-    }
-    pathfind_events.clear();
-}
-
-pub struct PathfindEvent {
-    customer: Entity,
-    destination: MapPos,
-}
-
-pub fn select_pathfinding_targets(
-    mut q: Query<(Entity, &mut Customer, &mut Movable, &mut Transform, &HasSize)>,
-    mut chairs: Query<&mut Chair>,
-    mut pathfind_events: EventWriter<PathfindEvent>,
-    map: Res<Map>
-) {
-    for (entity, mut customer, mut movable, mut transform, sized) in &mut q {
-        if customer.goal.is_none() && customer.state == CustomerState::LookingForChair {
-            // FIXME: if goal fails, should choose another.
-            for chair in &chairs {
-                if !chair.occupied {
-                    debug!("giving customer a goal: {:?}", chair.pos);
-                    pathfind_events.send(PathfindEvent {
-                        customer: entity,
-                        destination: chair.pos,
-                    });
-                    break;
-                }
-            }
-        } else if let Some(point) = customer.path.as_ref().and_then(|path| path.first().cloned()) {
-            let current_point = transform_to_map_pos(&transform, &map, &sized.size);
-            debug!("screen point: {:?}, current point: {:?}, next goal: {:?}", transform.translation, current_point, point);
-            if current_point == point {
-                debug!("reached target point, resetting");
-                customer.path.as_mut().unwrap().remove(0);
-                reset_movable_pos(&mut transform, &mut movable, &sized, &map, current_point);
-            } else {
-                move_to_point(&mut movable, current_point, point);
-            }
-        } else if let Some(goal) = customer.goal.clone() {
-            let current_point = transform_to_map_pos(&transform, &map, &sized.size);
-            debug!("current point: {:?}, terminal goal: {:?}", current_point, goal);
-            assert_eq!(current_point, goal);
-            customer.path = None;
-            customer.goal = None;
-            for mut chair in &mut chairs {
-                if chair.pos == goal {
-                    chair.occupied = true;
-                    customer.state = CustomerState::SittingInChair;
-                    break;
-                }
-            }
-        }
-    }
 }

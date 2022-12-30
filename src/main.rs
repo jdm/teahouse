@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::cat::run_cat;
+use crate::customer::run_customer;
 use crate::debug::debug_keys;
 use crate::dialog::{run_dialog, exit_dialog};
 use crate::entity::setup;
@@ -7,11 +8,11 @@ use crate::interaction::{highlight_interactable, keyboard_input};
 use crate::map::{read_map, MAP};
 use crate::movable::{check_for_collisions, move_movable, halt_collisions, CollisionEvent};
 use crate::pathfinding::{
-    PathfindEvent, PathingGrid, update_pathing_grid, select_pathfinding_targets,
-    pathfind, pathfind_to_target,
+    PathingGrid, update_pathing_grid, pathfind_to_target
 };
 
 mod cat;
+mod customer;
 mod debug;
 mod dialog;
 mod entity;
@@ -34,8 +35,7 @@ fn main() {
         .add_system(move_movable.after(halt_collisions))
         .insert_resource(map)
         .add_system(highlight_interactable)
-        .add_system(select_pathfinding_targets)
-        .add_system(pathfind.after(update_pathing_grid))
+        .add_system(run_customer)
         .add_system(pathfind_to_target.after(update_pathing_grid).before(check_for_collisions))
         .add_system_set(
             SystemSet::on_update(GameState::InGame)
@@ -53,7 +53,6 @@ fn main() {
         )
         .add_system(run_cat)
         .add_event::<CollisionEvent>()
-        .add_event::<PathfindEvent>()
         .init_resource::<PathingGrid>()
         .run();
 }
