@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
+use crate::cat::Cat;
 use crate::dialog::show_message_box;
 use crate::entity::*;
 use crate::movable::*;
@@ -78,6 +79,7 @@ pub fn keyboard_input(
     mut interactables: Query<(&mut TeaStash, &Interactable)>,
     mut cupboards: Query<(&mut Cupboard, &Interactable)>,
     customers: Query<(&Customer, &Interactable)>,
+    mut cat: Query<(&Interactable, &mut Affection), With<Cat>>,
     mut commands: Commands,
     mut game_state: ResMut<State<GameState>>,
     asset_server: Res<AssetServer>,
@@ -127,6 +129,13 @@ pub fn keyboard_input(
                 game_state.set(GameState::Dialog).unwrap();
                 show_message_box(&mut commands, customer.conversation.clone(), asset_server);
                 return;
+            }
+        }
+
+        for (interactable, mut affection) in &mut cat {
+            if interactable.colliding {
+                println!("You pet the cat.");
+                affection.react(Reaction::Positive);
             }
         }
     }

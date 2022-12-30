@@ -9,6 +9,54 @@ use std::collections::HashMap;
 use std::default::Default;
 use std::time::Duration;
 
+#[derive(Component, Default)]
+pub struct Affection {
+    affection: f32,
+}
+
+#[allow(dead_code)]
+pub enum Reaction {
+    Positive,
+    MajorPositive,
+    Negative,
+    MajorNegative,
+}
+
+#[allow(dead_code)]
+pub enum RelationshipStatus {
+    Angry,
+    Neutral,
+    Friendly,
+    VeryFriendly,
+    Crushing,
+}
+
+impl Affection {
+    pub fn react(&mut self, reaction: Reaction) {
+        self.affection += match reaction {
+            Reaction::Positive => 0.25,
+            Reaction::MajorPositive => 1.,
+            Reaction::Negative => -0.25,
+            Reaction::MajorNegative => -1.
+        };
+    }
+
+    #[allow(dead_code)]
+    pub fn status(&self) -> RelationshipStatus {
+        if self.affection < 0. {
+            RelationshipStatus::Angry
+        } else if self.affection < 1.5 {
+            RelationshipStatus::Neutral
+        } else if self.affection < 5. {
+            RelationshipStatus::Friendly
+        } else if self.affection < 7.5 {
+            RelationshipStatus::VeryFriendly
+        } else {
+            RelationshipStatus::Crushing
+        }
+    }
+}
+
 #[derive(Component)]
 pub struct Prop;
 
@@ -155,6 +203,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
                     conversation,
                     ..default()
                 },
+                Affection::default(),
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),
                     message: "Press X to talk".to_string(),
@@ -166,7 +215,18 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
             ));
         }
         EntityType::Cat => {
-            commands.spawn((Cat::default(), movable, sized, sprite));
+            commands.spawn((
+                Cat::default(),
+                Affection::default(),
+                Interactable {
+                    highlight: Color::rgb(1., 1., 1.),
+                    message: "Press X to pet the cat".to_string(),
+                    ..default()
+                },
+                movable,
+                sized,
+                sprite,
+            ));
         }
         EntityType::Chair(pos) => {
             commands.spawn((
