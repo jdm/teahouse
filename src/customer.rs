@@ -1,10 +1,27 @@
 use bevy::prelude::*;
-use crate::entity::{Chair, Door};
+use crate::entity::{Chair, Door, Reaction};
 use crate::pathfinding::PathfindTarget;
 use crate::tea::TeaPot;
 use rand::seq::IteratorRandom;
 use std::default::Default;
 use std::time::Duration;
+
+pub fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
+    let hint = teapot
+        .ingredients
+        .iter()
+        .max_by_key(|(_ingredient, amount)| *amount)
+        .unwrap()
+        .0;
+
+    let conversation = vec![
+        "You: Here's your tea.".to_owned(),
+        "Customer: Oh, thank you!".to_owned(),
+        format!("Customer: Is that a hint of {:?}?", hint),
+        "You: Enjoy!".to_owned(),
+    ];
+    (Reaction::Positive, conversation)
+}
 
 pub fn run_customer(
     mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&TeaPot>)>,

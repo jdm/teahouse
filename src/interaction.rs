@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
 use crate::cat::{Cat, petting_reaction};
-use crate::customer::Customer;
+use crate::customer::{Customer, tea_delivery};
 use crate::dialog::show_message_box;
 use crate::entity::*;
 use crate::geom::HasSize;
@@ -74,7 +74,7 @@ pub fn keyboard_input(
     mut q: Query<(Entity, &mut Player, &mut Movable)>,
     mut interactables: Query<(Entity, &mut TeaStash, &Interactable)>,
     mut cupboards: Query<(Entity, &mut Cupboard, &Interactable)>,
-    customers: Query<(Entity, &Customer, &Interactable)>,
+    mut customers: Query<(Entity, &Customer, &mut Affection, &Interactable), Without<Cat>>,
     mut cat: Query<(Entity, &Cat, &Interactable, &mut Affection)>,
     kettles: Query<(Entity, &Interactable), With<Kettle>>,
     mut commands: Commands,
@@ -140,7 +140,7 @@ pub fn keyboard_input(
             }
         }
 
-        for (customer_entity, customer, interactable) in &customers {
+        for (customer_entity, customer, mut affection, interactable) in &mut customers {
             if interactable.colliding {
                 if !teapot.is_empty() {
                     let teapot = teapot.single();
@@ -148,6 +148,11 @@ pub fn keyboard_input(
                     let mut delivered = (*teapot).clone();
                     delivered.steeped_for = Some(Instant::now() - delivered.steeped_at.unwrap());
                     commands.entity(customer_entity).insert(delivered);
+
+                    let (reaction, conversation) = tea_delivery(&teapot);
+                    affection.react(reaction);
+                    game_state.set(GameState::Dialog).unwrap();
+                    show_message_box(&mut commands, conversation, asset_server);
                 } else {
                     game_state.set(GameState::Dialog).unwrap();
                     show_message_box(&mut commands, customer.conversation.clone(), asset_server);
