@@ -296,9 +296,7 @@ pub fn setup(
 
     commands.spawn(
         StatusMessageBundle {
-            message: StatusMessage {
-                source: None,
-            },
+            message: StatusMessage::default(),
             text: TextBundle::from_section(
                 "",
                 TextStyle {

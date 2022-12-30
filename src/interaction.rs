@@ -7,9 +7,9 @@ use crate::dialog::show_message_box;
 use crate::entity::*;
 use crate::geom::HasSize;
 use crate::movable::Movable;
-use crate::message_line::StatusMessage;
+use crate::message_line::StatusEvent;
 use crate::tea::{TeaPot, TeaStash};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 #[derive(Component)]
 pub struct Interactable {
@@ -33,10 +33,9 @@ impl Default for Interactable {
 pub fn highlight_interactable(
     player: Query<(&Transform, &Movable), With<Player>>,
     mut interactable: Query<(Entity, &mut Interactable, &Transform, &mut Sprite, &HasSize)>,
-    mut status: Query<(&mut StatusMessage, &mut Text)>,
+    mut status_events: EventWriter<StatusEvent>,
 ) {
     let (player_transform, player_movable) = player.single();
-    let (mut status, mut status_text) = status.single_mut();
 
     for (entity, mut interactable, transform, mut sprite, size) in interactable.iter_mut() {
         let screen_size = size.screen_size();
@@ -46,22 +45,24 @@ pub fn highlight_interactable(
             player_transform.translation,
             player_movable.size * 1.3,
         );
-        if collision.is_some() && status.source.is_none() {
+        if collision.is_some() {
             if interactable.previous.is_none() {
                 interactable.previous = Some(sprite.color);
                 sprite.color = interactable.highlight;
+
+                status_events.send(StatusEvent::timed_message(
+                    entity,
+                    interactable.message.clone(),
+                    Duration::from_secs(5),
+                ));
             }
             interactable.colliding = true;
-
-            status.source = Some(entity);
-            status_text.sections[0].value = interactable.message.clone();
-
+            break;
         } else if collision.is_none() && interactable.previous.is_some() {
             sprite.color = interactable.previous.take().unwrap();
             interactable.colliding = false;
 
-            status.source = None;
-            status_text.sections[0].value = "".to_string();
+            status_events.send(StatusEvent::clear(entity));
         }
     }
 }

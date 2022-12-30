@@ -6,7 +6,7 @@ use crate::dialog::{run_dialog, exit_dialog};
 use crate::entity::setup;
 use crate::interaction::{highlight_interactable, keyboard_input};
 use crate::map::{read_map, MAP};
-use crate::message_line::StatusEvent;
+use crate::message_line::{update_status_line, StatusEvent};
 use crate::movable::move_movables;
 use crate::pathfinding::{
     PathingGrid, update_pathing_grid, pathfind_to_target
@@ -53,6 +53,7 @@ fn main() {
                 .with_system(exit_dialog)
         )
         .add_system(run_cat)
+        .add_system(update_status_line)
         .add_event::<StatusEvent>()
         .init_resource::<PathingGrid>()
         .init_resource::<DebugSettings>()
