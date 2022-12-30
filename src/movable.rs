@@ -91,13 +91,11 @@ pub fn check_for_collisions(
 
 pub fn halt_collisions(
     mut collision_events: EventReader<CollisionEvent>,
-    mut q: Query<(Entity, &mut Movable)>,
+    mut q: Query<&mut Movable>,
 ) {
     for ev in collision_events.iter() {
-        for (entity, mut movable) in &mut q {
-            if ev.moving == entity {
-                movable.speed = Vec2::ZERO;
-            }
+        if let Ok(mut movable) = q.get_mut(ev.moving) {
+            movable.speed = Vec2::ZERO;
         }
     }
     collision_events.clear();
