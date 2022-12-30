@@ -23,7 +23,7 @@ pub fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos) {
 
 pub fn reset_movable_pos(transform: &mut Transform, movable: &mut Movable, sized: &HasSize, map: &Map, pos: MapPos) {
     let ideal_point = map_to_screen(&pos, &sized.size, &map);
-    transform.translation = Vec2::new(ideal_point.x, ideal_point.y).extend(0.);
+    transform.translation = Vec3::new(ideal_point.x, ideal_point.y, transform.translation.z);
     movable.speed = Vec2::ZERO;
 }
 

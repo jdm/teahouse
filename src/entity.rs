@@ -127,13 +127,17 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         EntityType::Cat => Color::BLACK,
         EntityType::Kettle => Color::LIME_GREEN,
     };
+    let z = match entity {
+        EntityType::Chair | EntityType::CatBed => 0.,
+        _ => 0.1,
+    };
     let sprite = SpriteBundle {
         sprite: Sprite {
             color,
             custom_size: Some(size),
             ..default()
         },
-        transform: Transform::from_translation(pos.extend(0.)),
+        transform: Transform::from_translation(pos.extend(z)),
         ..default()
     };
     let movable = Movable { speed: Vec2::ZERO, size: size, entity_speed: speed };
