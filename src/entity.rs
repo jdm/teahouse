@@ -238,15 +238,6 @@ pub fn setup(
     mut map: ResMut<Map>,
     asset_server: Res<AssetServer>,
 ) {
-    for pos in &map.chairs {
-        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
-        spawn_sprite(
-            EntityType::Chair(*pos),
-            rect,
-            &mut commands,
-        )
-    }
-
     for pos in &map.cat_beds {
         let rect = map_to_screen(pos, &MapSize { width: 2, height: 2 }, &map);
         spawn_sprite(
@@ -256,46 +247,10 @@ pub fn setup(
         )
     }
 
-    for pos in &map.cat_beds {
-        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
-        spawn_sprite(
-            EntityType::Cat,
-            rect,
-            &mut commands,
-        )
-    }
-
     for pos in &map.cupboards {
         let rect = map_to_screen(pos, &MapSize { width: 2, height: 1 }, &map);
         spawn_sprite(
             EntityType::Cupboard(rand::random()),
-            rect,
-            &mut commands,
-        )
-    }
-
-    for pos in &map.doors {
-        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
-        spawn_sprite(
-            EntityType::Door,
-            rect,
-            &mut commands,
-        )
-    }
-
-    for pos in &map.stoves {
-        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
-        spawn_sprite(
-            EntityType::Stove,
-            rect,
-            &mut commands,
-        )
-    }
-
-    for pos in &map.tea_stashes {
-        let rect = map_to_screen(pos, &MapSize { width: 1, height: 1 }, &map);
-        spawn_sprite(
-            EntityType::TeaStash(Ingredient::generate_random(), rand::random()),
             rect,
             &mut commands,
         )

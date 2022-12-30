@@ -22,13 +22,8 @@ pub static MAP: &[&str] = &[
 pub struct Map {
     pub entities: Vec<(EntityType, MapPos)>,
     pub props: Vec<(MapSize, MapPos)>,
-    pub chairs: Vec<MapPos>,
-    pub doors: Vec<MapPos>,
-    pub stoves: Vec<MapPos>,
-    pub tea_stashes: Vec<MapPos>,
     pub cupboards: Vec<MapPos>,
     pub cat_beds: Vec<MapPos>,
-    pub cats: Vec<MapPos>,
     pub width: usize,
     pub height: usize,
 }
@@ -50,19 +45,23 @@ pub fn read_map(data: &[&str]) -> Map {
                     "first".to_string(), "second".to_string(), "third".to_string(),
                 ]), MapPos { x, y }));
             } else if ch == 'c' {
-                map.chairs.push(MapPos { x, y });
+                let pos = MapPos { x, y };
+                map.entities.push((EntityType::Chair(pos), pos));
             } else if ch == 'B' {
                 map.cupboards.push(MapPos { x, y });
             } else if ch == 'D' {
-                map.doors.push(MapPos { x, y });
+                map.entities.push((EntityType::Door, MapPos { x, y }));
             } else if ch == 's' {
-                map.stoves.push(MapPos { x, y });
+                map.entities.push((EntityType::Stove, MapPos { x, y }));
             } else if ch == 't' {
-                map.tea_stashes.push(MapPos { x, y });
+                map.entities.push((
+                    EntityType::TeaStash(Ingredient::generate_random(), rand::random()),
+                    MapPos { x, y },
+                ));
             } else if ch == 'b' {
                 map.cat_beds.push(MapPos { x, y });
             } else if ch == 'k' {
-                map.cats.push(MapPos { x, y });
+                map.entities.push((EntityType::Cat, MapPos { x, y }));
             } else if ch == 'x' {
                 let mut length = 1;
                 while let Some((_, 'x')) = chars.peek() {
