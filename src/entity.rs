@@ -5,10 +5,9 @@ use crate::geom::*;
 use crate::interaction::*;
 use crate::map::Map;
 use crate::movable::*;
-use rand_derive2::RandGen;
+use crate::tea::{Ingredient, TeaStash};
 use std::collections::HashMap;
 use std::default::Default;
-use std::time::Duration;
 
 #[derive(Component, Default)]
 pub struct Affection {
@@ -65,12 +64,6 @@ pub struct Prop;
 pub struct Kettle;
 
 #[derive(Component)]
-pub struct TeaStash {
-    pub ingredient: Ingredient,
-    pub amount: u32,
-}
-
-#[derive(Component)]
 pub struct Stove;
 
 #[derive(Component)]
@@ -90,26 +83,6 @@ pub struct Cupboard {
 #[derive(Component, Default)]
 pub struct Player {
     pub carrying: HashMap<Ingredient, u32>,
-}
-
-#[derive(Component, Default)]
-pub struct TeaPot {
-    pub ingredients: HashMap<Ingredient, u32>,
-    pub steeped_for: Option<Duration>,
-    pub water: u32,
-}
-
-#[derive(Hash, RandGen, Copy, Clone, PartialEq, Eq, Debug)]
-pub enum Ingredient {
-    BlackTea,
-    OolongTea,
-    Chai,
-    CitrusPeel,
-    MintLeaf,
-    Sugar,
-    Honey,
-    Milk,
-    Lemon,
 }
 
 #[derive(Clone, PartialEq, Debug)]

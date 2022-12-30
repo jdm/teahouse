@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::entity::*;
 use crate::geom::*;
+use crate::tea::Ingredient;
 use std::collections::HashMap;
 
 pub static MAP: &[&str] = &[

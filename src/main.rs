@@ -21,6 +21,7 @@ mod interaction;
 mod map;
 mod movable;
 mod pathfinding;
+mod tea;
 
 fn main() {
     let map = read_map(MAP);

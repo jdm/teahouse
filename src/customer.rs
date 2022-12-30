@@ -1,6 +1,7 @@
 use bevy::prelude::*;
-use crate::entity::{Chair, Door, TeaPot};
+use crate::entity::{Chair, Door};
 use crate::pathfinding::PathfindTarget;
+use crate::tea::TeaPot;
 use rand::seq::IteratorRandom;
 use std::default::Default;
 use std::time::Duration;
@@ -53,6 +54,7 @@ pub fn run_customer(
         }
 
         if drink {
+            println!("customer got teapot");
             customer.state = CustomerState::DrinkingTea(Timer::new(Duration::from_secs(5), TimerMode::Once));
         }
 

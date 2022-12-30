@@ -7,6 +7,8 @@ use crate::dialog::show_message_box;
 use crate::entity::*;
 use crate::geom::HasSize;
 use crate::movable::Movable;
+use crate::tea::{TeaPot, TeaStash};
+use std::time::Instant;
 
 #[derive(Component)]
 pub struct StatusMessage {
@@ -81,7 +83,7 @@ pub fn keyboard_input(
     mut q: Query<(Entity, &mut Player, &mut Movable)>,
     mut interactables: Query<(&mut TeaStash, &Interactable)>,
     mut cupboards: Query<(&mut Cupboard, &Interactable)>,
-    customers: Query<(&Customer, &Interactable)>,
+    customers: Query<(Entity, &Customer, &Interactable)>,
     mut cat: Query<(&Interactable, &mut Affection), With<Cat>>,
     kettles: Query<&Interactable, With<Kettle>>,
     mut commands: Commands,
@@ -129,10 +131,18 @@ pub fn keyboard_input(
             }
         }
 
-        for (customer, interactable) in &customers {
+        for (customer_entity, customer, interactable) in &customers {
             if interactable.colliding {
-                game_state.set(GameState::Dialog).unwrap();
-                show_message_box(&mut commands, customer.conversation.clone(), asset_server);
+                if !teapot.is_empty() {
+                    let teapot = teapot.single();
+                    commands.entity(player_entity).remove::<TeaPot>();
+                    let mut delivered = (*teapot).clone();
+                    delivered.steeped_for = Some(Instant::now() - delivered.steeped_at.unwrap());
+                    commands.entity(customer_entity).insert(delivered);
+                } else {
+                    game_state.set(GameState::Dialog).unwrap();
+                    show_message_box(&mut commands, customer.conversation.clone(), asset_server);
+                }
                 return;
             }
         }
@@ -150,6 +160,8 @@ pub fn keyboard_input(
                 if interactable.colliding {
                     println!("You fill the teapot.");
                     teapot.water = 100;
+                    teapot.ingredients = std::mem::take(&mut player.carrying);
+                    teapot.steeped_at = Some(Instant::now());
                 }
             }
         }
