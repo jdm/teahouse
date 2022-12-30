@@ -18,10 +18,13 @@ pub fn run_customer(
         let mut sit = false;
         match customer.state {
             CustomerState::LookingForChair => {
-                let mut rng = rand::thread_rng();
-                let chair_entity = chairs.iter().choose(&mut rng).unwrap();
-                commands.entity(entity).insert(PathfindTarget::new(chair_entity, true));
-                move_to = true;
+                if target.is_none() {
+                    let mut rng = rand::thread_rng();
+                    let chair_entity = chairs.iter().choose(&mut rng).unwrap();
+                    commands.entity(entity).insert(PathfindTarget::new(chair_entity, true));
+                } else {
+                    move_to = true;
+                }
             }
             CustomerState::MovingToChair => {
                 sit = target.is_none();

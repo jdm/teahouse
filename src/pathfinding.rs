@@ -93,7 +93,21 @@ pub fn pathfind_to_target(
         if target.next_point.map_or(true, |point| current_point == point) {
             reset_movable_pos(&mut transform, &mut movable, &sized, &map, current_point);
 
-            let target_point = target_data[&target.target];
+            for (debug_entity, debug_tile, _) in &debug_tile {
+                if debug_tile.for_entity == entity {
+                    commands.entity(debug_entity).despawn();
+                }
+            }
+
+            let target_point = match target_data.get(&target.target) {
+                Some(point) => *point,
+                None => {
+                    warn!("Target {:?} no longer exists; giving up.", target.target);
+                    commands.entity(entity).remove::<PathfindTarget>();
+                    continue;
+                }
+            };
+
             // FIXME: is this necessary, or can we rely on an empty path instead?
             if target_point == current_point || current_point == target.current_goal {
                 commands.entity(entity).remove::<PathfindTarget>();
@@ -110,12 +124,6 @@ pub fn pathfind_to_target(
 
                 target.next_point = Some(path[0]);
                 target.current_goal = actual_target_point;
-
-                for (debug_entity, debug_tile, _) in &debug_tile {
-                    if debug_tile.for_entity == entity {
-                        commands.entity(debug_entity).despawn();
-                    }
-                }
 
                 for point in path {
                     let next_screen_rect = map_to_screen(&point, &MapSize { width: 1, height: 1 }, &map);
@@ -137,7 +145,12 @@ pub fn pathfind_to_target(
                     ));
                 }
             } else {
-                debug!("No path to {:?} for {:?}", target.target, entity);
+                warn!("No path to {:?} for {:?}", target.target, entity);
+                // If we're in the middle of making a path to a target, resume next cycle.
+                // Otherwise, give up and remove any trace of the pathing attempt.
+                if target.next_point.is_none() {
+                    commands.entity(entity).remove::<PathfindTarget>();
+                }
             }
         } else {
             move_to_point(&mut movable, current_point, target.next_point.unwrap());
