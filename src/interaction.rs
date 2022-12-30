@@ -73,10 +73,10 @@ pub fn keyboard_input(
     keys: Res<Input<KeyCode>>,
     mut q: Query<(Entity, &mut Player, &mut Movable)>,
     mut interactables: Query<(&mut TeaStash, &Interactable)>,
-    mut cupboards: Query<(&mut Cupboard, &Interactable)>,
+    mut cupboards: Query<(Entity, &mut Cupboard, &Interactable)>,
     customers: Query<(Entity, &Customer, &Interactable)>,
     mut cat: Query<(Entity, &Cat, &Interactable, &mut Affection)>,
-    kettles: Query<&Interactable, With<Kettle>>,
+    kettles: Query<(Entity, &Interactable), With<Kettle>>,
     mut commands: Commands,
     mut game_state: ResMut<State<GameState>>,
     mut teapot: Query<&mut TeaPot, With<Player>>,
@@ -114,11 +114,24 @@ pub fn keyboard_input(
             }
         }
 
-        for (mut cupboard, interactable) in &mut cupboards {
+        for (entity, mut cupboard, interactable) in &mut cupboards {
             if interactable.colliding {
-                cupboard.teapots -= 1;
-                commands.entity(player_entity).insert(TeaPot::default());
-                println!("acquired teapot");
+                let message = if cupboard.teapots > 0 {
+                    if teapot.is_empty() {
+                        cupboard.teapots -= 1;
+                        commands.entity(player_entity).insert(TeaPot::default());
+                        format!("You take a teapot ({} left).", cupboard.teapots)
+                    } else {
+                        "You're already carrying a teapot.".to_string()
+                    }
+                } else {
+                    "No teapots remaining.".to_string()
+                };
+                status_events.send(StatusEvent::timed_message(
+                    entity,
+                    message.to_string(),
+                    DEFAULT_EXPIRY,
+                ));
                 return;
             }
         }
@@ -152,16 +165,42 @@ pub fn keyboard_input(
             }
         }
 
-        if !teapot.is_empty() {
-            let mut teapot = teapot.single_mut();
-            for interactable in &kettles {
-                if interactable.colliding {
-                    println!("You fill the teapot.");
-                    teapot.water = 100;
-                    teapot.ingredients = std::mem::take(&mut player.carrying);
-                    teapot.steeped_at = Some(Instant::now());
-                }
+        for (entity, interactable) in &kettles {
+            if !interactable.colliding {
+                continue;
             }
+            if teapot.is_empty() {
+                status_events.send(StatusEvent::timed_message(
+                    entity,
+                    "You need a teapot to use the kettle.".to_owned(),
+                    DEFAULT_EXPIRY,
+                ));
+                continue;
+            }
+
+            let mut teapot = teapot.single_mut();
+
+            let ingredients = if player.carrying.is_empty() {
+                "nothing".to_owned()
+            } else {
+                let mut ingredients = player
+                    .carrying
+                    .keys()
+                    .map(|k| format!("{:?}", k))
+                    .collect::<Vec<_>>();
+                ingredients.insert(0, "the".to_owned());
+                ingredients.join(" and the ")
+            };
+            let message = format!("You add {} to the teapot and fill it with boiling water.", ingredients);
+            status_events.send(StatusEvent::timed_message(
+                entity,
+                message,
+                DEFAULT_EXPIRY,
+            ));
+
+            teapot.water = 100;
+            teapot.ingredients = std::mem::take(&mut player.carrying);
+            teapot.steeped_at = Some(Instant::now());
         }
     }
 }

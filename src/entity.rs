@@ -7,6 +7,7 @@ use crate::map::Map;
 use crate::movable::*;
 use crate::message_line::{StatusMessage, StatusMessageBundle};
 use crate::tea::{Ingredient, TeaStash};
+use rand::Rng;
 use std::collections::HashMap;
 use std::default::Default;
 
@@ -267,8 +268,9 @@ pub fn setup(
 
     for pos in &map.cupboards {
         let rect = map_to_screen(pos, &MapSize { width: 2, height: 1 }, &map);
+        let mut rng = rand::thread_rng();
         spawn_sprite(
-            EntityType::Cupboard(rand::random()),
+            EntityType::Cupboard(rng.gen_range(4..10)),
             rect,
             &mut commands,
         )
