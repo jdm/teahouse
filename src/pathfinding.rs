@@ -179,25 +179,20 @@ fn find_path(
 
 pub fn pathfind(
     mut pathfind_events: EventReader<PathfindEvent>,
-    mut q: Query<(Entity, &mut Customer, &Transform)>,
+    mut q: Query<(&mut Customer, &Transform)>,
     map: Res<Map>,
     grid: Res<PathingGrid>,
 ) {
     for ev in pathfind_events.iter() {
-        for (entity, mut customer, transform) in &mut q {
-            if entity != ev.customer {
-                continue;
-            }
+        let (mut customer, transform) = q.get_mut(ev.customer).unwrap();
 
-            let path = find_path(&grid, &map, &transform, ev.destination, true);
-            if path.is_none() {
-                debug!("no path to goal!");
-                continue;
-            }
-            customer.goal = Some(ev.destination);
-            customer.path = Some(path.unwrap().0);
-            break;
+        let path = find_path(&grid, &map, &transform, ev.destination, true);
+        if path.is_none() {
+            debug!("no path to goal!");
+            continue;
         }
+        customer.goal = Some(ev.destination);
+        customer.path = Some(path.unwrap().0);
     }
     pathfind_events.clear();
 }
