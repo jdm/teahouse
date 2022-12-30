@@ -42,7 +42,6 @@ impl Affection {
         };
     }
 
-    #[allow(dead_code)]
     pub fn status(&self) -> RelationshipStatus {
         if self.affection < 0. {
             RelationshipStatus::Angry

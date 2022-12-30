@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
-use crate::cat::Cat;
+use crate::cat::{Cat, petting_reaction};
 use crate::customer::Customer;
 use crate::dialog::show_message_box;
 use crate::entity::*;
@@ -10,6 +10,8 @@ use crate::movable::Movable;
 use crate::message_line::StatusEvent;
 use crate::tea::{TeaPot, TeaStash};
 use std::time::{Duration, Instant};
+
+const DEFAULT_EXPIRY: Duration = Duration::from_secs(5);
 
 #[derive(Component)]
 pub struct Interactable {
@@ -53,7 +55,7 @@ pub fn highlight_interactable(
                 status_events.send(StatusEvent::timed_message(
                     entity,
                     interactable.message.clone(),
-                    Duration::from_secs(5),
+                    DEFAULT_EXPIRY,
                 ));
             }
             interactable.colliding = true;
@@ -73,12 +75,13 @@ pub fn keyboard_input(
     mut interactables: Query<(&mut TeaStash, &Interactable)>,
     mut cupboards: Query<(&mut Cupboard, &Interactable)>,
     customers: Query<(Entity, &Customer, &Interactable)>,
-    mut cat: Query<(&Interactable, &mut Affection), With<Cat>>,
+    mut cat: Query<(Entity, &Cat, &Interactable, &mut Affection)>,
     kettles: Query<&Interactable, With<Kettle>>,
     mut commands: Commands,
     mut game_state: ResMut<State<GameState>>,
     mut teapot: Query<&mut TeaPot, With<Player>>,
     asset_server: Res<AssetServer>,
+    mut status_events: EventWriter<StatusEvent>,
 ) {
     let (player_entity, mut player, mut movable) = q.single_mut();
 
@@ -136,10 +139,16 @@ pub fn keyboard_input(
             }
         }
 
-        for (interactable, mut affection) in &mut cat {
+        for (entity, cat, interactable, mut affection) in &mut cat {
             if interactable.colliding {
-                println!("You pet the cat.");
-                affection.react(Reaction::Positive);
+                let (reaction, message) = petting_reaction(&cat, &affection);
+                status_events.send(StatusEvent::timed_message(
+                    entity,
+                    message,
+                    DEFAULT_EXPIRY,
+                ));
+
+                affection.react(reaction);
             }
         }
 

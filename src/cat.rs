@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use crate::customer::Customer;
-use crate::entity::{CatBed, Player};
+use crate::entity::{Affection, RelationshipStatus, CatBed, Player, Reaction};
 use crate::pathfinding::PathfindTarget;
 use rand::seq::IteratorRandom;
 use std::time::Duration;
@@ -23,6 +23,22 @@ impl Default for Cat {
             state: CatState::Sleeping(Timer::new(Duration::from_secs(2), TimerMode::Once))
         }
     }
+}
+
+pub fn petting_reaction(cat: &Cat, affection: &Affection) -> (Reaction, String) {
+    let reaction = match cat.state {
+        CatState::Sleeping(..) => Reaction::MajorNegative,
+        CatState::MovingToEntity |
+        CatState::MovingToBed => Reaction::Positive,
+    };
+    let message = match affection.status() {
+        RelationshipStatus::Angry => "The cat hisses.",
+        RelationshipStatus::Neutral => "The cat ignores you.",
+        RelationshipStatus::Friendly => "The cat purrs.",
+        RelationshipStatus::VeryFriendly => "The cat purrs and rubs against you.",
+        RelationshipStatus::Crushing => "The cat purs and headbutts your hand.",
+    }.to_string();
+    (reaction, message)
 }
 
 pub fn run_cat(
