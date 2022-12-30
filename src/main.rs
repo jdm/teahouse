@@ -34,10 +34,10 @@ fn main() {
         .insert_resource(map)
         .add_system(highlight_interactable)
         .add_system(run_customer)
-        .add_system(pathfind_to_target.after(update_pathing_grid).before(check_for_collisions))
+        .add_system(pathfind_to_target.after(update_pathing_grid).before(move_movables))
         .add_system_set(
             SystemSet::on_update(GameState::InGame)
-                .with_system(keyboard_input.before(check_for_collisions))
+                .with_system(keyboard_input.before(move_movables))
                 .with_system(debug_keys)
                 .with_system(bevy::window::close_on_esc)
         )

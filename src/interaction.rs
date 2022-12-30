@@ -5,7 +5,8 @@ use crate::cat::Cat;
 use crate::customer::Customer;
 use crate::dialog::show_message_box;
 use crate::entity::*;
-use crate::movable::*;
+use crate::geom::HasSize;
+use crate::movable::Movable;
 
 #[derive(Component)]
 pub struct StatusMessage {
@@ -41,16 +42,17 @@ impl Default for Interactable {
 
 pub fn highlight_interactable(
     player: Query<(&Transform, &Movable), With<Player>>,
-    mut interactable: Query<(Entity, &mut Interactable, &Transform, &mut Sprite, &Movable)>,
+    mut interactable: Query<(Entity, &mut Interactable, &Transform, &mut Sprite, &HasSize)>,
     mut status: Query<(&mut StatusMessage, &mut Text)>,
 ) {
     let (player_transform, player_movable) = player.single();
     let (mut status, mut status_text) = status.single_mut();
 
-    for (entity, mut interactable, transform, mut sprite, movable) in interactable.iter_mut() {
+    for (entity, mut interactable, transform, mut sprite, size) in interactable.iter_mut() {
+        let screen_size = size.screen_size();
         let collision = collide(
             transform.translation,
-            movable.size,
+            Vec2::new(screen_size.0, screen_size.1),
             player_transform.translation,
             player_movable.size * 1.3,
         );
@@ -81,8 +83,10 @@ pub fn keyboard_input(
     mut cupboards: Query<(&mut Cupboard, &Interactable)>,
     customers: Query<(&Customer, &Interactable)>,
     mut cat: Query<(&Interactable, &mut Affection), With<Cat>>,
+    kettles: Query<&Interactable, With<Kettle>>,
     mut commands: Commands,
     mut game_state: ResMut<State<GameState>>,
+    mut teapot: Query<&mut TeaPot, With<Player>>,
     asset_server: Res<AssetServer>,
 ) {
     let (player_entity, mut player, mut movable) = q.single_mut();
@@ -137,6 +141,16 @@ pub fn keyboard_input(
             if interactable.colliding {
                 println!("You pet the cat.");
                 affection.react(Reaction::Positive);
+            }
+        }
+
+        if !teapot.is_empty() {
+            let mut teapot = teapot.single_mut();
+            for interactable in &kettles {
+                if interactable.colliding {
+                    println!("You fill the teapot.");
+                    teapot.water = 100;
+                }
             }
         }
     }

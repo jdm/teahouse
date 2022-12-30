@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 use crate::entity::*;
 use crate::geom::*;
+use std::collections::HashMap;
 
 pub static MAP: &[&str] = &[
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx",
     "xb....................................xsssxxxxx",
     "x.k.............P............................tx",
     "x.....C....c......................xx.........tx",
-    "x........cxxx...........c...........xxxxx....tx",
+    "x........cxxx...........c...........xxxKx....tx",
     "x.........xxxc.........xx..............xxxx...x",
     "D..........c..........xxxxc.......c...........x",
     "x....xxx.............cxxx........xxx..........x",
@@ -35,24 +36,26 @@ pub fn read_map(data: &[&str]) -> Map {
         ..default()
     };
 
+    let simple_entities = HashMap::from([
+        ('P', EntityType::Player),
+        ('D', EntityType::Door),
+        ('s', EntityType::Stove),
+        ('K', EntityType::Kettle),
+        ('k', EntityType::Cat),
+        ('c', EntityType::Chair),
+    ]);
+
     for (y, line) in data.iter().enumerate() {
         let mut chars = line.chars().enumerate().peekable();
         while let Some((x, ch)) = chars.next() {
-            if ch == 'P' {
-                map.entities.push((EntityType::Player, MapPos { x, y }));
+            if simple_entities.contains_key(&ch) {
+                map.entities.push((simple_entities[&ch].clone(), MapPos { x, y }));
             } else if ch == 'C' {
                 map.entities.push((EntityType::Customer(vec![
                     "first".to_string(), "second".to_string(), "third".to_string(),
                 ]), MapPos { x, y }));
-            } else if ch == 'c' {
-                let pos = MapPos { x, y };
-                map.entities.push((EntityType::Chair(pos), pos));
             } else if ch == 'B' {
                 map.cupboards.push(MapPos { x, y });
-            } else if ch == 'D' {
-                map.entities.push((EntityType::Door, MapPos { x, y }));
-            } else if ch == 's' {
-                map.entities.push((EntityType::Stove, MapPos { x, y }));
             } else if ch == 't' {
                 map.entities.push((
                     EntityType::TeaStash(Ingredient::generate_random(), rand::random()),
@@ -60,8 +63,6 @@ pub fn read_map(data: &[&str]) -> Map {
                 ));
             } else if ch == 'b' {
                 map.cat_beds.push(MapPos { x, y });
-            } else if ch == 'k' {
-                map.entities.push((EntityType::Cat, MapPos { x, y }));
             } else if ch == 'x' {
                 let mut length = 1;
                 while let Some((_, 'x')) = chars.peek() {

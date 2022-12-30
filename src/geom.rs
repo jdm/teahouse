@@ -8,6 +8,15 @@ pub struct HasSize {
     pub size: MapSize,
 }
 
+impl HasSize {
+    pub fn screen_size(&self) -> (f32, f32) {
+        (
+            self.size.width as f32 * TILE_SIZE,
+            self.size.height as f32 * TILE_SIZE,
+        )
+    }
+}
+
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub struct ScreenRect {
     pub x: f32,

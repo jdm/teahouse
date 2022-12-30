@@ -1,21 +1,22 @@
 use bevy::prelude::*;
-use crate::entity::{Chair, Door};
+use crate::entity::{Chair, Door, TeaPot};
 use crate::pathfinding::PathfindTarget;
 use rand::seq::IteratorRandom;
 use std::default::Default;
 use std::time::Duration;
 
 pub fn run_customer(
-    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>)>,
+    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&TeaPot>)>,
     chairs: Query<Entity, With<Chair>>,
     doors: Query<Entity, With<Door>>,
     mut commands: Commands,
     time: Res<Time>,
 ) {
-    for (entity, mut customer, target) in &mut q {
+    for (entity, mut customer, target, teapot) in &mut q {
         let mut move_to = false;
         let mut leave = false;
         let mut sit = false;
+        let mut drink = false;
         match customer.state {
             CustomerState::LookingForChair => {
                 if target.is_none() {
@@ -29,7 +30,10 @@ pub fn run_customer(
             CustomerState::MovingToChair => {
                 sit = target.is_none();
             }
-            CustomerState::SittingInChair(ref mut timer) => {
+            CustomerState::WaitingForTea => {
+                drink = teapot.is_some();
+            }
+            CustomerState::DrinkingTea(ref mut timer) => {
                 timer.tick(time.delta());
                 leave = timer.finished();
             }
@@ -45,7 +49,11 @@ pub fn run_customer(
         }
 
         if sit {
-            customer.state = CustomerState::SittingInChair(Timer::new(Duration::from_secs(5), TimerMode::Once));
+            customer.state = CustomerState::WaitingForTea;
+        }
+
+        if drink {
+            customer.state = CustomerState::DrinkingTea(Timer::new(Duration::from_secs(5), TimerMode::Once));
         }
 
         if leave {
@@ -60,7 +68,8 @@ pub fn run_customer(
 pub enum CustomerState {
     LookingForChair,
     MovingToChair,
-    SittingInChair(Timer),
+    WaitingForTea,
+    DrinkingTea(Timer),
     Leaving,
 }
 

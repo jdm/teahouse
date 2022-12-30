@@ -62,6 +62,9 @@ impl Affection {
 pub struct Prop;
 
 #[derive(Component)]
+pub struct Kettle;
+
+#[derive(Component)]
 pub struct TeaStash {
     pub ingredient: Ingredient,
     pub amount: u32,
@@ -77,10 +80,7 @@ pub struct Door;
 pub struct CatBed;
 
 #[derive(Component)]
-pub struct Chair {
-    pub pos: MapPos,
-    pub occupied: bool,
-}
+pub struct Chair;
 
 #[derive(Component)]
 pub struct Cupboard {
@@ -96,6 +96,7 @@ pub struct Player {
 pub struct TeaPot {
     pub ingredients: HashMap<Ingredient, u32>,
     pub steeped_for: Option<Duration>,
+    pub water: u32,
 }
 
 #[derive(Hash, RandGen, Copy, Clone, PartialEq, Eq, Debug)]
@@ -116,13 +117,14 @@ pub enum EntityType {
     Customer(Vec<String>),
     Player,
     Prop,
-    Chair(MapPos),
+    Chair,
     Door,
     Stove,
     TeaStash(Ingredient, u32),
     Cupboard(u32),
     CatBed,
     Cat,
+    Kettle,
 }
 
 pub const CAT_SPEED: f32 = 25.0;
@@ -142,13 +144,14 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         EntityType::Player => Color::rgb(0.25, 0.25, 0.75),
         EntityType::Customer(..) => Color::rgb(0.0, 0.25, 0.0),
         EntityType::Prop => Color::rgb(0.25, 0.15, 0.0),
-        EntityType::Chair(..) => Color::rgb(0.15, 0.05, 0.0),
+        EntityType::Chair => Color::rgb(0.15, 0.05, 0.0),
         EntityType::Door => Color::rgb(0.6, 0.2, 0.2),
         EntityType::Stove => Color::rgb(0.8, 0.8, 0.8),
         EntityType::TeaStash(..) => Color::rgb(0.3, 0.3, 0.3),
         EntityType::Cupboard(..) => Color::rgb(0.5, 0.35, 0.0),
         EntityType::CatBed => Color::rgb(0., 0., 0.25),
         EntityType::Cat => Color::BLACK,
+        EntityType::Kettle => Color::LIME_GREEN,
     };
     let sprite = SpriteBundle {
         sprite: Sprite {
@@ -204,21 +207,27 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
                 sprite,
             ));
         }
-        EntityType::Chair(pos) => {
-            commands.spawn((
-                Chair {
-                    pos,
-                    occupied: false,
-                },
-                sized,
-                sprite,
-            ));
+        EntityType::Chair => {
+            commands.spawn((Chair, sized, sprite));
         }
         EntityType::Prop => {
             commands.spawn((Prop, movable, sized, sprite));
         }
         EntityType::Door => {
             commands.spawn((Door, movable, sized, sprite));
+        }
+        EntityType::Kettle => {
+            commands.spawn((
+                Kettle,
+                Interactable {
+                    highlight: Color::rgb(1., 1., 1.),
+                    message: "Press X to fill the pot".to_string(),
+                    ..default()
+                },
+                movable,
+                sized,
+                sprite,
+            ));
         }
         EntityType::Stove => {
             commands.spawn((
