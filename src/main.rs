@@ -6,7 +6,7 @@ use crate::dialog::{run_dialog, exit_dialog};
 use crate::entity::setup;
 use crate::interaction::{highlight_interactable, keyboard_input};
 use crate::map::{read_map, MAP};
-use crate::movable::{check_for_collisions, move_movable, halt_collisions, CollisionEvent};
+use crate::movable::move_movables;
 use crate::pathfinding::{
     PathingGrid, update_pathing_grid, pathfind_to_target
 };
@@ -30,16 +30,14 @@ fn main() {
         .add_startup_system(setup)
         .add_state(GameState::InGame)
         .add_system(update_pathing_grid)
-        .add_system(check_for_collisions)
-        .add_system(halt_collisions.after(check_for_collisions))
-        .add_system(move_movable.after(halt_collisions))
+        .add_system(move_movables)
         .insert_resource(map)
         .add_system(highlight_interactable)
         .add_system(run_customer)
         .add_system(pathfind_to_target.after(update_pathing_grid).before(check_for_collisions))
         .add_system_set(
             SystemSet::on_update(GameState::InGame)
-                .with_system(keyboard_input)
+                .with_system(keyboard_input.before(check_for_collisions))
                 .with_system(debug_keys)
                 .with_system(bevy::window::close_on_esc)
         )
@@ -52,7 +50,6 @@ fn main() {
                 .with_system(exit_dialog)
         )
         .add_system(run_cat)
-        .add_event::<CollisionEvent>()
         .init_resource::<PathingGrid>()
         .run();
 }

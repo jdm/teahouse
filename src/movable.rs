@@ -34,76 +34,111 @@ pub struct Movable {
     pub entity_speed: f32,
 }
 
-pub struct CollisionEvent {
-    moving: Entity,
-    _fixed: Entity,
+struct MovingEntity {
+    speed: Vec2,
+    translation: Vec3,
+    size: MapSize,
 }
 
-pub fn check_for_collisions(
-    q: Query<(Entity, &Movable, &Transform, &HasSize)>,
+fn entities_will_collide(first: &MovingEntity, second: &MovingEntity, time_delta: f32, map_size: &MapSize) -> bool {
+    let entities_intersecting =
+        |first_point: &MapPos, first_size: &MapSize, second_point: &MapPos, second_size: &MapSize| {
+            first_point.x + first_size.width > second_point.x &&
+                first_point.x < second_point.x + second_size.width &&
+                first_point.y + first_size.height > second_point.y &&
+                first_point.y < second_point.y + second_size.height
+        };
+
+    let base_pos1 = screen_to_map_pos_inner(first.translation.x, first.translation.y, &map_size, &first.size);
+    let base_pos2 = screen_to_map_pos_inner(second.translation.x, second.translation.y, &map_size, &second.size);
+    if base_pos1 == base_pos2 {
+        // Bail out; the entities are already sharing a tile.
+        debug!("bailing out ({:?} and {:?})", first.translation, second.translation);
+        return false;
+    }
+
+    let x1_delta = Vec3::new(first.speed.x, 0., 0.);
+    let adjusted1 = first.translation + x1_delta * time_delta;
+    let moving_tile_pos = screen_to_map_pos_inner(adjusted1.x, adjusted1.y, &map_size, &first.size);
+
+    let x2_delta = Vec3::new(second.speed.x, 0., 0.);
+    let adjusted2 = second.translation + x2_delta * time_delta;
+    let fixed_tile_pos = screen_to_map_pos_inner(adjusted2.x, adjusted2.y, &map_size, &second.size);
+
+    let x_colliding = entities_intersecting(&moving_tile_pos, &first.size, &fixed_tile_pos, &second.size);
+    if x_colliding {
+        debug!("x colliding at {:?} ({:?}) and {:?} ({:?})", moving_tile_pos, adjusted1, fixed_tile_pos, adjusted2);
+    }
+
+    let y1_delta = Vec3::new(0., first.speed.y, 0.);
+    let adjusted1 = first.translation + y1_delta * time_delta;
+    let moving_tile_pos = screen_to_map_pos_inner(adjusted1.x, adjusted1.y, &map_size, &first.size);
+
+    let y2_delta = Vec3::new(0., second.speed.y, 0.);
+    let adjusted2 = second.translation + y2_delta * time_delta;
+    let fixed_tile_pos = screen_to_map_pos_inner(adjusted2.x, adjusted2.y, &map_size, &second.size);
+
+    let y_colliding = entities_intersecting(&moving_tile_pos, &first.size, &fixed_tile_pos, &second.size);
+    if y_colliding {
+        debug!("y colliding at {:?} ({:?}) and {:?} ({:?})", moving_tile_pos, adjusted1, fixed_tile_pos, adjusted2);
+    }
+
+    x_colliding || y_colliding
+}
+
+pub fn move_movables(
+    mut set: ParamSet<(
+        Query<(Entity, &Movable, &Transform, &HasSize)>,
+        Query<&mut Movable>,
+        Query<(&Movable, &mut Transform)>,
+    )>,
     timer: Res<Time>,
     map: Res<Map>,
-    mut collision_events: EventWriter<CollisionEvent>,
 ) {
+    let delta_seconds = timer.delta_seconds();
+
+    let mut colliding_entities = vec![];
+    let q = set.p0();
     for (moving, movable, transform, sized) in &q {
-        for (fixed, _movable2, transform2, sized2) in &q {
+        for (fixed, movable2, transform2, sized2) in &q {
             if moving == fixed {
                 continue;
             }
 
-            if movable.speed == Vec2::ZERO {
+            if movable.speed == Vec2::ZERO && movable2.speed == Vec2::ZERO {
                 continue;
             }
 
-            let delta = movable.speed.extend(0.);
-            let adjusted = transform.translation + delta * timer.delta_seconds();
-            let moving_tile_pos = screen_to_map_pos(adjusted.x, adjusted.y, &map, &sized.size);
-            let fixed_tile_pos = screen_to_map_pos(transform2.translation.x, transform2.translation.y, &map, &sized2.size);
+            let first = MovingEntity {
+                speed: movable.speed,
+                translation: transform.translation,
+                size: sized.size,
+            };
+            let second = MovingEntity {
+                speed: Vec2::ZERO,
+                translation: transform2.translation,
+                size: sized2.size,
+            };
+            let map_size = MapSize { width: map.width, height: map.height };
+            let colliding = entities_will_collide(&first, &second, delta_seconds, &map_size);
 
-            //let collision = collide(adjusted, movable.size, transform2.translation, movable2.size);
-            //if collision.is_some() {
-            let mut colliding = false;
-            'exit: for y in 0..sized.size.height {
-                for x in 0..sized.size.width {
-                    for y2 in 0..sized2.size.height {
-                        for x2 in 0..sized2.size.width {
-                            if x + moving_tile_pos.x == x2 + fixed_tile_pos.x &&
-                                y + moving_tile_pos.y == y2 + fixed_tile_pos.y
-                            {
-                                colliding = true;
-                                break 'exit;
-                            }
-                        }
-                    }
-                }
-            }
-            //if moving_tile_pos == fixed_tile_pos {
             if colliding {
                 debug!("collision for {:?} and {:?}", moving, fixed);
-                collision_events.send(CollisionEvent {
-                    moving: moving,
-                    _fixed: fixed,
-                });
+                colliding_entities.push(moving);
             }
         }
     }
-}
 
-pub fn halt_collisions(
-    mut collision_events: EventReader<CollisionEvent>,
-    mut q: Query<&mut Movable>,
-) {
-    for ev in collision_events.iter() {
-        if let Ok(mut movable) = q.get_mut(ev.moving) {
-            movable.speed = Vec2::ZERO;
-        }
+    for entity in colliding_entities {
+        let mut q = set.p1();
+        let mut movable = q.get_mut(entity).unwrap();
+        debug!("resetting speed for {:?}", entity);
+        movable.speed = Vec2::ZERO;
     }
-    collision_events.clear();
-}
 
-pub fn move_movable(mut q: Query<(&Movable, &mut Transform)>, timer: Res<Time>) {
+    let mut q = set.p2();
     for (movable, mut transform) in &mut q {
         let delta = Vec3::new(movable.speed.x, movable.speed.y, 0.0);
-        transform.translation += delta * timer.delta_seconds();
+        transform.translation += delta * delta_seconds;
     }
 }
