@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::entity::Paused;
 use crate::GameState;
 
 #[derive(Component)]
@@ -12,10 +13,13 @@ pub struct Conversation {
 }
 
 pub fn show_message_box(
+    entity: Entity,
     commands: &mut Commands,
     messages: Vec<String>,
     asset_server: Res<AssetServer>,
 ) {
+    commands.entity(entity).insert(Paused);
+
     let id = commands
         .spawn(NodeBundle {
             style: Style {
@@ -77,11 +81,16 @@ pub fn show_message_box(
 
 pub fn exit_dialog(
     conversation: Query<(Entity, &Conversation)>,
+    paused: Query<Entity, With<Paused>>,
     mut commands: Commands,
 ) {
     let (entity, conversation) = conversation.single();
     commands.entity(conversation.box_entity).despawn_recursive();
     commands.entity(entity).despawn();
+
+    for paused_entity in &paused {
+        commands.entity(paused_entity).remove::<Paused>();
+    }
 }
 
 pub fn run_dialog(

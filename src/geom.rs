@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::map::*;
+use crate::movable::Movable;
 
 pub const TILE_SIZE: f32 = 25.0;
 
@@ -47,6 +48,15 @@ pub fn screen_to_map_pos_inner(x: f32, y: f32, map: &MapSize, size: &MapSize) ->
     assert!(x >= 0.);
     assert!(y >= 0.);
     MapPos { x: x as usize, y: y as usize }
+}
+
+pub fn transform_to_screenrect(transform: &Transform, movable: &Movable) -> ScreenRect {
+    ScreenRect {
+        x: transform.translation.x,
+        y: transform.translation.y,
+        w: movable.size.x,
+        h: movable.size.y,
+    }
 }
 
 pub fn transform_to_map_pos(transform: &Transform, map: &Map, size: &MapSize) -> MapPos {

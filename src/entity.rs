@@ -6,10 +6,16 @@ use crate::interaction::*;
 use crate::map::Map;
 use crate::movable::*;
 use crate::message_line::{StatusMessage, StatusMessageBundle};
-use crate::tea::{Ingredient, TeaStash};
+use crate::tea::{Ingredient, TeaStash, TeaPot};
 use rand::Rng;
 use std::collections::HashMap;
 use std::default::Default;
+
+#[derive(Component)]
+pub struct Paused;
+
+#[derive(Component)]
+pub struct Item;
 
 #[derive(Component, Default)]
 pub struct Affection {
@@ -99,6 +105,7 @@ pub enum EntityType {
     CatBed,
     Cat,
     Kettle,
+    TeaPot,
 }
 
 pub const CAT_SPEED: f32 = 25.0;
@@ -126,6 +133,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         EntityType::CatBed => Color::rgb(0., 0., 0.25),
         EntityType::Cat => Color::BLACK,
         EntityType::Kettle => Color::LIME_GREEN,
+        EntityType::TeaPot => Color::GRAY,
     };
     let z = match entity {
         EntityType::Chair | EntityType::CatBed => 0.,
@@ -164,6 +172,20 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),
                     message: "Press X to talk".to_string(),
+                    ..default()
+                },
+                movable,
+                sized,
+                sprite,
+            ));
+        }
+        EntityType::TeaPot => {
+            commands.spawn((
+                TeaPot::default(),
+                Item,
+                Interactable {
+                    highlight: Color::rgb(1., 1., 1.),
+                    message: "Press X to collect".to_string(),
                     ..default()
                 },
                 movable,

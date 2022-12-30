@@ -1,5 +1,7 @@
 use bevy::prelude::*;
-use crate::entity::{Chair, Door, Reaction};
+use crate::entity::{Chair, Door, Reaction, EntityType, Paused, spawn_sprite};
+use crate::geom::transform_to_screenrect;
+use crate::movable::Movable;
 use crate::pathfinding::PathfindTarget;
 use crate::tea::TeaPot;
 use rand::seq::IteratorRandom;
@@ -24,13 +26,13 @@ pub fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
 }
 
 pub fn run_customer(
-    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&TeaPot>)>,
+    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&TeaPot>, &Movable, &Transform), Without<Paused>>,
     chairs: Query<Entity, With<Chair>>,
     doors: Query<Entity, With<Door>>,
     mut commands: Commands,
     time: Res<Time>,
 ) {
-    for (entity, mut customer, target, teapot) in &mut q {
+    for (entity, mut customer, target, teapot, movable, transform) in &mut q {
         let mut move_to = false;
         let mut leave = false;
         let mut sit = false;
@@ -71,15 +73,18 @@ pub fn run_customer(
         }
 
         if drink {
-            println!("customer got teapot");
             customer.state = CustomerState::DrinkingTea(Timer::new(Duration::from_secs(5), TimerMode::Once));
         }
 
         if leave {
             customer.state = CustomerState::Leaving;
+            commands.entity(entity).remove::<TeaPot>();
             let mut rng = rand::thread_rng();
             let door_entity = doors.iter().choose(&mut rng).unwrap();
             commands.entity(entity).insert(PathfindTarget::new(door_entity, false));
+
+            let rect = transform_to_screenrect(&transform, &movable);
+            spawn_sprite(EntityType::TeaPot, rect, &mut commands);
         }
     }
 }

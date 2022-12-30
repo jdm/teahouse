@@ -7,11 +7,9 @@ use crate::dialog::show_message_box;
 use crate::entity::*;
 use crate::geom::HasSize;
 use crate::movable::Movable;
-use crate::message_line::StatusEvent;
+use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::tea::{TeaPot, TeaStash};
-use std::time::{Duration, Instant};
-
-const DEFAULT_EXPIRY: Duration = Duration::from_secs(5);
+use std::time::Instant;
 
 #[derive(Component)]
 pub struct Interactable {
@@ -152,10 +150,10 @@ pub fn keyboard_input(
                     let (reaction, conversation) = tea_delivery(&teapot);
                     affection.react(reaction);
                     game_state.set(GameState::Dialog).unwrap();
-                    show_message_box(&mut commands, conversation, asset_server);
+                    show_message_box(customer_entity, &mut commands, conversation, asset_server);
                 } else {
                     game_state.set(GameState::Dialog).unwrap();
-                    show_message_box(&mut commands, customer.conversation.clone(), asset_server);
+                    show_message_box(customer_entity, &mut commands, customer.conversation.clone(), asset_server);
                 }
                 return;
             }

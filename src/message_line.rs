@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
+pub const DEFAULT_EXPIRY: Duration = Duration::from_secs(5);
+
 #[derive(Component, Default)]
 pub struct StatusMessage {
     pub source: Option<Entity>,

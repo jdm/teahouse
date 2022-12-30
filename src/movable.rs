@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::entity::Paused;
 use crate::geom::*;
 use crate::map::Map;
 
@@ -90,7 +91,7 @@ pub fn move_movables(
     mut set: ParamSet<(
         Query<(Entity, &Movable, &Transform, &HasSize)>,
         Query<&mut Movable>,
-        Query<(&Movable, &mut Transform)>,
+        Query<(&Movable, &mut Transform), Without<Paused>>,
     )>,
     timer: Res<Time>,
     map: Res<Map>,
