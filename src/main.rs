@@ -4,7 +4,7 @@ use basic_pathfinding::pathfinding::find_path as base_find_path;
 use basic_pathfinding::pathfinding::SearchOpts;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
-use bevy::time::FixedTimestep;
+//use bevy::time::FixedTimestep;
 use rand::seq::IteratorRandom;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ use std::default::Default;
 use std::time::Duration;
 
 // Defines the amount of time that should elapse between each physics step.
-const TIME_STEP: f32 = 1.0 / 60.0;
+//const TIME_STEP: f32 = 1.0 / 60.0;
 
 fn main() {
     let map = read_map(MAP);
@@ -20,24 +20,31 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup)
+        .add_state(GameState::InGame)
         .add_system(update_pathing_grid)
-        .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
-                .with_system(check_for_collisions)
-                .with_system(halt_collisions.after(check_for_collisions))
-                .with_system(move_movable.after(halt_collisions))
-
-        )
+        .add_system(check_for_collisions)
+        .add_system(halt_collisions.after(check_for_collisions))
+        .add_system(move_movable.after(halt_collisions))
         .insert_resource(map)
         .add_system(highlight_interactable)
         .add_system(select_pathfinding_targets)
         .add_system(pathfind.after(update_pathing_grid))
         .add_system(pathfind_to_target.after(update_pathing_grid).before(check_for_collisions))
-        .add_system(keyboard_input)
+        .add_system_set(
+            SystemSet::on_update(GameState::InGame)
+                .with_system(keyboard_input)
+                .with_system(debug_keys)
+                .with_system(bevy::window::close_on_esc)
+        )
+        .add_system_set(
+            SystemSet::on_update(GameState::Dialog)
+                .with_system(run_dialog)
+        )
+        .add_system_set(
+            SystemSet::on_exit(GameState::Dialog)
+                .with_system(exit_dialog)
+        )
         .add_system(run_cat)
-        .add_system(debug_keys)
-        .add_system(bevy::window::close_on_esc)
         .add_event::<CollisionEvent>()
         .add_event::<PathfindEvent>()
         .init_resource::<PathingGrid>()
@@ -75,6 +82,22 @@ fn update_pathing_grid(
         grid_type: GridType::Cardinal,
         ..default()
     };
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+enum GameState {
+    InGame,
+    Dialog,
+}
+
+#[derive(Component)]
+struct MessageBox;
+
+#[derive(Component)]
+struct Conversation {
+    messages: Vec<String>,
+    current: usize,
+    box_entity: Entity,
 }
 
 #[derive(Hash, RandGen, Copy, Clone, PartialEq, Eq, Debug)]
@@ -157,6 +180,7 @@ struct Customer {
     goal: Option<MapPos>,
     path: Option<Vec<MapPos>>,
     state: CustomerState,
+    conversation: Vec<String>,
 }
 
 impl Default for Customer {
@@ -165,6 +189,7 @@ impl Default for Customer {
             goal: None,
             path: None,
             state: CustomerState::LookingForChair,
+            conversation: vec![],
         }
     }
 }
@@ -623,12 +648,79 @@ fn highlight_interactable(
     }
 }
 
+fn show_message_box(
+    commands: &mut Commands,
+    messages: Vec<String>,
+    asset_server: Res<AssetServer>,
+) {
+    let id = commands
+        .spawn(NodeBundle {
+            style: Style {
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                justify_content: JustifyContent::SpaceBetween,
+                ..default()
+            },
+            ..default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Px(800.0), Val::Px(200.0)),
+                        position_type: PositionType::Absolute,
+                        position: UiRect {
+                            left: Val::Px(210.0),
+                            bottom: Val::Px(10.0),
+                            ..default()
+                        },
+                        border: UiRect::all(Val::Px(20.0)),
+                        ..default()
+                    },
+                    background_color: Color::rgb(0.4, 0.4, 1.0).into(),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    parent.spawn((
+                        MessageBox,
+                        TextBundle::from_sections([
+                            TextSection::new(
+                                &messages[0],
+                                TextStyle {
+                                    font: asset_server.load("Lato-Medium.ttf"),
+                                    font_size: 25.0,
+                                    color: Color::WHITE,
+                                },
+                            ),
+                            TextSection::new(
+                                "\n\nPress space...",
+                                TextStyle {
+                                    font: asset_server.load("Lato-Medium.ttf"),
+                                    font_size: 15.0,
+                                    color: Color::rgb(0.8, 0.8, 1.0),
+                                },
+                            ),
+                        ]),
+                    ));
+                });
+        })
+        .id();
+
+    commands.spawn(Conversation {
+        messages,
+        current: 0,
+        box_entity: id,
+    });
+}
+
 fn keyboard_input(
     keys: Res<Input<KeyCode>>,
     mut q: Query<(Entity, &mut Player, &mut Movable)>,
     mut interactables: Query<(&mut TeaStash, &Interactable)>,
     mut cupboards: Query<(&mut Cupboard, &Interactable)>,
+    customers: Query<(&Customer, &Interactable)>,
     mut commands: Commands,
+    mut game_state: ResMut<State<GameState>>,
+    asset_server: Res<AssetServer>,
 ) {
     let (player_entity, mut player, mut movable) = q.single_mut();
 
@@ -660,6 +752,7 @@ fn keyboard_input(
                 return;
             }
         }
+
         for (mut cupboard, interactable) in &mut cupboards {
             if interactable.colliding {
                 cupboard.teapots -= 1;
@@ -669,7 +762,41 @@ fn keyboard_input(
             }
         }
 
-        //if player.
+        for (customer, interactable) in &customers {
+            if interactable.colliding {
+                game_state.set(GameState::Dialog).unwrap();
+                show_message_box(&mut commands, customer.conversation.clone(), asset_server);
+                return;
+            }
+        }
+    }
+}
+
+fn exit_dialog(
+    conversation: Query<(Entity, &Conversation)>,
+    mut commands: Commands,
+) {
+    let (entity, conversation) = conversation.single();
+    commands.entity(conversation.box_entity).despawn_recursive();
+    commands.entity(entity).despawn();
+}
+
+fn run_dialog(
+    mut conversation: Query<&mut Conversation>,
+    mut text_box: Query<&mut Text, With<MessageBox>>,
+    keys: Res<Input<KeyCode>>,
+    mut game_state: ResMut<State<GameState>>,
+) {
+    let mut conversation = conversation.single_mut();
+    let mut text_box = text_box.single_mut();
+
+    if keys.just_released(KeyCode::Space) {
+        conversation.current += 1;
+        if conversation.current == conversation.messages.len() {
+            game_state.set(GameState::InGame).unwrap();
+        } else {
+            text_box.sections[0].value = conversation.messages[conversation.current].clone();
+        }
     }
 }
 
@@ -686,13 +813,18 @@ fn debug_keys(
         // FIXME: assume customers are all 1x1 entities.
         let screen_rect = map_to_screen(&door_pos, &MapSize { width: 1, height: 1 }, &map);
 
-        spawn_sprite(EntityType::Customer, screen_rect, &mut commands);
+        let conversation = vec![
+            "This is the first message.".to_string(),
+            "This is the second message.".to_string(),
+            "This is the third message.".to_string(),
+        ];
+        spawn_sprite(EntityType::Customer(conversation), screen_rect, &mut commands);
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 enum EntityType {
-    Customer,
+    Customer(Vec<String>),
     Player,
     Prop,
     Chair(MapPos),
@@ -709,13 +841,13 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
     let size = Vec2::new(rect.w, rect.h);
     let speed = match entity {
         EntityType::Player => SPEED,
-        EntityType::Customer => CUSTOMER_SPEED,
+        EntityType::Customer(..) => CUSTOMER_SPEED,
         EntityType::Cat => CAT_SPEED,
         _ => 0.,
     };
     let color = match entity {
         EntityType::Player => Color::rgb(0.25, 0.25, 0.75),
-        EntityType::Customer => Color::rgb(0.0, 0.25, 0.0),
+        EntityType::Customer(..) => Color::rgb(0.0, 0.25, 0.0),
         EntityType::Prop => Color::rgb(0.25, 0.15, 0.0),
         EntityType::Chair(..) => Color::rgb(0.15, 0.05, 0.0),
         EntityType::Door => Color::rgb(0.6, 0.2, 0.2),
@@ -748,8 +880,21 @@ fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
                     parent.spawn(Camera2dBundle::default());
                 });
         }
-        EntityType::Customer => {
-            commands.spawn((Customer::default(), movable, sized, sprite));
+        EntityType::Customer(conversation) => {
+            commands.spawn((
+                Customer {
+                    conversation,
+                    ..default()
+                },
+                Interactable {
+                    highlight: Color::rgb(1., 1., 1.),
+                    message: "Press X to talk".to_string(),
+                    ..default()
+                },
+                movable,
+                sized,
+                sprite,
+            ));
         }
         EntityType::Cat => {
             commands.spawn((Cat::default(), movable, sized, sprite));
@@ -823,7 +968,7 @@ static MAP: &[&str] = &[
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx",
     "xb....................................xsssxxxxx",
     "x.k.............P............................tx",
-    "x..........c......................xx.........tx",
+    "x.....C....c......................xx.........tx",
     "x........cxxx...........c...........xxxxx....tx",
     "x.........xxxc.........xx..............xxxx...x",
     "D..........c..........xxxxc.......c...........x",
@@ -883,7 +1028,9 @@ fn read_map(data: &[&str]) -> Map {
             if ch == 'P' {
                 map.entities.push((EntityType::Player, MapPos { x, y }));
             } else if ch == 'C' {
-                map.entities.push((EntityType::Customer, MapPos { x, y }));
+                map.entities.push((EntityType::Customer(vec![
+                    "first".to_string(), "second".to_string(), "third".to_string(),
+                ]), MapPos { x, y }));
             } else if ch == 'c' {
                 map.chairs.push(MapPos { x, y });
             } else if ch == 'B' {
@@ -979,7 +1126,7 @@ fn map_to_screen(pos: &MapPos, size: &MapSize, map: &Map) -> ScreenRect {
 
 fn setup(
     mut commands: Commands,
-    map: Res<Map>,
+    mut map: ResMut<Map>,
     asset_server: Res<AssetServer>,
 ) {
     for pos in &map.chairs {
@@ -1054,11 +1201,11 @@ fn setup(
         )
     }
 
-    for (entity_type, pos) in &map.entities {
+    for (entity_type, pos) in std::mem::take(&mut map.entities) {
         let size = MapSize { width: 1, height: 1 };
-        let rect = map_to_screen(pos, &size, &map);
+        let rect = map_to_screen(&pos, &size, &map);
         spawn_sprite(
-            *entity_type,
+            entity_type,
             rect,
             &mut commands,
         );
@@ -1100,7 +1247,9 @@ fn map_read_entities() {
         height: 1,
         entities: vec![
             (EntityType::Player, MapPos { x: 2, y: 0 }),
-            (EntityType::Customer, MapPos { x: 5, y: 0 }),
+            (EntityType::Customer(vec![
+                "first".to_string(), "second".to_string(), "third".to_string()
+            ]), MapPos { x: 5, y: 0 }),
         ],
         ..default()
     };
