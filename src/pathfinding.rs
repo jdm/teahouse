@@ -3,7 +3,7 @@ use basic_pathfinding::coord::Coord;
 use basic_pathfinding::grid::{Grid, GridType};
 use basic_pathfinding::pathfinding::find_path as base_find_path;
 use basic_pathfinding::pathfinding::SearchOpts;
-use crate::debug::*;
+use crate::debug::{DebugTile, DebugSettings, create_debug_path};
 use crate::geom::*;
 use crate::movable::*;
 use crate::map::Map;
@@ -73,6 +73,7 @@ pub fn pathfind_to_target(
     mut commands: Commands,
     grid: Res<PathingGrid>,
     debug_tile: Query<(Entity, &DebugTile, &mut Sprite)>,
+    debug_settings: Res<DebugSettings>,
 ) {
     let mut target_entities = vec![];
     for target in &set.p0() {
@@ -125,24 +126,8 @@ pub fn pathfind_to_target(
                 target.next_point = Some(path[0]);
                 target.current_goal = actual_target_point;
 
-                for point in path {
-                    let next_screen_rect = map_to_screen(&point, &MapSize { width: 1, height: 1 }, &map);
-                    let next_screen_point = Vec3::new(next_screen_rect.x, next_screen_rect.y, 0.);
-                    commands.spawn((
-                        DebugTile { for_entity: entity },
-                        SpriteBundle {
-                            sprite: Sprite {
-                                color: Color::rgba(0.5, 0., 0., 0.2),
-                                custom_size: Some(Vec2::new(
-                                    next_screen_rect.w * 0.6,
-                                    next_screen_rect.h * 0.6,
-                                )),
-                                ..default()
-                            },
-                            transform: Transform::from_translation(next_screen_point),
-                            ..default()
-                        },
-                    ));
+                if debug_settings.show_paths {
+                    create_debug_path(entity, &path, &map, &mut commands);
                 }
             } else {
                 warn!("No path to {:?} for {:?}", target.target, entity);

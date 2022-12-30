@@ -5,6 +5,7 @@ use crate::geom::*;
 use crate::interaction::*;
 use crate::map::Map;
 use crate::movable::*;
+use crate::message_line::{StatusMessage, StatusMessageBundle};
 use crate::tea::{Ingredient, TeaStash};
 use std::collections::HashMap;
 use std::default::Default;

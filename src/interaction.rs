@@ -7,21 +7,9 @@ use crate::dialog::show_message_box;
 use crate::entity::*;
 use crate::geom::HasSize;
 use crate::movable::Movable;
+use crate::message_line::StatusMessage;
 use crate::tea::{TeaPot, TeaStash};
 use std::time::Instant;
-
-#[derive(Component)]
-pub struct StatusMessage {
-    pub source: Option<Entity>,
-}
-
-#[derive(Bundle)]
-pub struct StatusMessageBundle {
-    pub message: StatusMessage,
-
-    #[bundle]
-    pub text: TextBundle,
-}
 
 #[derive(Component)]
 pub struct Interactable {
