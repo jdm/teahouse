@@ -5,7 +5,7 @@ use crate::customer::{run_customer, customer_spawner, spawn_customer_by_door, Ne
 use crate::debug::{DebugSettings, debug_keys};
 use crate::dialog::{run_dialog, exit_dialog};
 use crate::entity::setup;
-use crate::interaction::{highlight_interactable, keyboard_input};
+use crate::interaction::*;
 use crate::map::{read_map, MAP};
 use crate::message_line::{update_status_line, StatusEvent};
 use crate::movable::move_movables;
@@ -67,8 +67,14 @@ fn main() {
         .add_system(customer_spawner)
         .add_system(spawn_customer_by_door)
         .add_system(animate_sprite)
+        .add_system(interact_with_stash)
+        .add_system(interact_with_cupboards)
+        .add_system(interact_with_customers)
+        .add_system(interact_with_cat)
+        .add_system(interact_with_kettles)
         .add_event::<StatusEvent>()
         .add_event::<NewCustomerEvent>()
+        .add_event::<PlayerInteracted>()
         .init_resource::<PathingGrid>()
         .init_resource::<DebugSettings>();
 
