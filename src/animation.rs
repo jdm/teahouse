@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use crate::movable::Movable;
 
 pub struct AnimationPlugin;
 
@@ -10,30 +9,47 @@ impl Plugin for AnimationPlugin {
     }
 }
 
+pub struct AnimData {
+    pub index: usize,
+    pub frames: usize,
+}
+
 #[derive(Resource)]
 pub struct TextureResources {
+    // FIXME: generalize to more atlases
     pub atlas: Handle<TextureAtlas>,
-    pub cycle_length: usize,
+    pub frame_data: Vec<AnimData>,
 }
 
 #[derive(Component, Deref, DerefMut)]
 pub struct AnimationTimer(pub Timer);
+
+#[derive(Component)]
+pub struct AnimationData {
+    pub current_animation: usize,
+}
+
+impl AnimationData {
+    pub fn set_current<T: Into<usize>>(&mut self, current: T) {
+        let animation = current.into();
+        self.current_animation = animation;
+    }
+}
 
 fn animate_sprite(
     time: Res<Time>,
     texture_resources: Res<TextureResources>,
     mut query: Query<(
         &mut AnimationTimer,
+        &AnimationData,
         &mut TextureAtlasSprite,
-        &Movable,
     )>,
 ) {
-    for (mut timer, mut sprite, movable) in &mut query {
+    for (mut timer, data, mut sprite) in &mut query {
         timer.tick(time.delta());
         if timer.just_finished() {
-            let num_textures = texture_resources.cycle_length;
-            sprite.index = movable.direction.anim_index() * num_textures +
-                (sprite.index + 1) % num_textures;
+            let frames = &texture_resources.frame_data[data.current_animation];
+            sprite.index = frames.index + (sprite.index + 1) % frames.frames;
         }
     }
 }

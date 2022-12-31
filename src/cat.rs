@@ -1,10 +1,11 @@
 use bevy::prelude::*;
+use crate::animation::AnimationData;
 use crate::customer::Customer;
-use crate::entity::{Affection, RelationshipStatus, Player, Reaction};
+use crate::entity::{Affection, RelationshipStatus, Player, Reaction, Facing, FacingDirection};
 use crate::interaction::PlayerInteracted;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::pathfinding::PathfindTarget;
-//use rand::Rng;
+use rand::Rng;
 use rand::seq::IteratorRandom;
 use std::time::Duration;
 
@@ -14,10 +15,24 @@ impl Plugin for CatPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_system(interact_with_cat)
-            .add_system(run_cat);
+            .add_system(run_cat)
+            .add_system(update_animation_state);
     }
 }
 
+pub enum CatAnimationState {
+    WalkDown = 0,
+    WalkRight = 1,
+    WalkUp = 2,
+    WalkLeft = 3,
+    Sit = 4,
+}
+
+impl From<CatAnimationState> for usize {
+    fn from(state: CatAnimationState) -> usize {
+        state as usize
+    }
+}
 
 #[derive(Component)]
 pub struct CatBed;
@@ -34,13 +49,12 @@ pub struct Cat {
     state: CatState,
 }
 
-//const MIN_SLEEP_TIME: u64 = 30;
-//const MAX_SLEEP_TIME: u64 = 60;
+const MIN_SLEEP_TIME: u64 = 3;
+const MAX_SLEEP_TIME: u64 = 15;
 
 fn create_sleep_timer() -> Timer {
-    /*let mut rng = rand::thread_rng();
-    let secs = rng.gen_range(MIN_SLEEP_TIME..MAX_SLEEP_TIME);*/
-    let secs = 0;
+    let mut rng = rand::thread_rng();
+    let secs = rng.gen_range(MIN_SLEEP_TIME..MAX_SLEEP_TIME);
     Timer::new(Duration::from_secs(secs), TimerMode::Once)
 }
 
@@ -68,14 +82,31 @@ pub fn petting_reaction(cat: &Cat, affection: &Affection) -> (Reaction, String) 
     (reaction, message)
 }
 
+fn update_animation_state(
+    mut cat_animation: Query<(&mut AnimationData, &Facing), (With<Cat>, Changed<Facing>)>,
+) {
+    if cat_animation.is_empty() {
+        return;
+    }
+
+    let (mut data, facing) = cat_animation.single_mut();
+    let state = match facing.0 {
+        FacingDirection::Up => CatAnimationState::WalkUp,
+        FacingDirection::Down => CatAnimationState::WalkDown,
+        FacingDirection::Right => CatAnimationState::WalkRight,
+        FacingDirection::Left => CatAnimationState::WalkLeft,
+    };
+    data.set_current(state);
+}
+
 fn run_cat(
-    mut cat: Query<(Entity, &mut Cat, Option<&PathfindTarget>)>,
+    mut cat: Query<(Entity, &mut Cat, Option<&PathfindTarget>, &mut AnimationData)>,
     cat_bed: Query<(Entity, &CatBed)>,
     humans: Query<Entity, Or<(With<Player>, With<Customer>)>>,
     time: Res<Time>,
     mut commands: Commands,
 ) {
-    let (entity, mut cat, target) = cat.single_mut();
+    let (entity, mut cat, target, mut animation) = cat.single_mut();
     let mut find_entity = false;
     let mut find_bed = false;
     let mut sleep = false;
@@ -83,6 +114,7 @@ fn run_cat(
         CatState::Sleeping(ref mut timer) => {
             timer.tick(time.delta());
             find_entity = timer.finished();
+            animation.set_current(CatAnimationState::Sit);
         }
         CatState::MovingToEntity => find_bed = target.is_none(),
         CatState::MovingToBed => sleep = target.is_none(),
@@ -103,6 +135,7 @@ fn run_cat(
 
     if sleep {
         cat.state = CatState::Sleeping(create_sleep_timer());
+        animation.set_current(CatAnimationState::Sit);
     }
 }
 

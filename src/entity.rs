@@ -1,11 +1,11 @@
 use bevy::prelude::*;
-use crate::animation::{AnimationTimer, TextureResources};
+use crate::animation::{AnimationData, AnimData, AnimationTimer, TextureResources};
 use crate::cat::*;
 use crate::customer::Customer;
 use crate::geom::{HasSize, MapSize, TILE_SIZE, ScreenRect, map_to_screen};
 use crate::interaction::Interactable;
 use crate::map::Map;
-use crate::movable::{Movable, MoveDirection};
+use crate::movable::Movable;
 use crate::message_line::{StatusMessage, StatusMessageBundle};
 use crate::tea::{Ingredient, TeaStash, TeaPot, Kettle, Cupboard};
 use rand::Rng;
@@ -17,6 +17,16 @@ pub struct Paused;
 
 #[derive(Component)]
 pub struct Item;
+
+pub enum FacingDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+#[derive(Component)]
+pub struct Facing(pub FacingDirection);
 
 #[derive(Component, Default)]
 pub struct Affection {
@@ -142,7 +152,6 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         speed: Vec2::ZERO,
         size: size,
         entity_speed: speed,
-        direction: MoveDirection::Down,
         subtile_max: None,
     };
     let sized = HasSize {
@@ -156,7 +165,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
             commands.spawn((Player::default(), movable, sized, sprite))
                 .with_children(|parent| {
                     let mut bundle = Camera2dBundle::default();
-                    bundle.transform.scale = Vec3::new(0.5, 0.5, 1.0);
+                    bundle.transform.scale = Vec3::new(0.75, 0.75, 1.0);
                     parent.spawn(bundle);
                 });
         }
@@ -198,7 +207,9 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
             commands.spawn((
                 Cat::default(),
                 AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
+                AnimationData { current_animation: CatAnimationState::Sit.into() },
                 Affection::default(),
+                Facing(FacingDirection::Down),
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),
                     message: "Press X to pet the cat".to_string(),
@@ -288,11 +299,17 @@ pub fn setup(
 ) {
     let texture_handle = asset_server.load("cat.png");
     let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 4, None, None);
+        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 5, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
     let texture_resources = TextureResources {
         atlas: texture_atlas_handle,
-        cycle_length: 4,
+        frame_data: vec![
+            AnimData { index: 0, frames: 4 },
+            AnimData { index: 4, frames: 4 },
+            AnimData { index: 8, frames: 4 },
+            AnimData { index: 12, frames: 4 },
+            AnimData { index: 16, frames: 1 },
+        ],
     };
 
     for pos in &map.cat_beds {

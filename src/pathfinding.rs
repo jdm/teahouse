@@ -4,6 +4,7 @@ use basic_pathfinding::grid::{Grid, GridType};
 use basic_pathfinding::pathfinding::find_path as base_find_path;
 use basic_pathfinding::pathfinding::SearchOpts;
 use crate::debug::{DebugTile, DebugSettings, create_debug_path};
+use crate::entity::Facing;
 use crate::geom::{HasSize, MapPos, MapSize, transform_to_map_pos};
 use crate::movable::{
     Movable, move_to_point, is_tile_aligned, move_to_screen_point, reset_movable_pos, move_movables
@@ -12,6 +13,7 @@ use crate::map::Map;
 use rand::seq::IteratorRandom;
 use std::collections::HashMap;
 use std::default::Default;
+use std::ops::DerefMut;
 
 pub struct PathfindingPlugin;
 
@@ -80,7 +82,7 @@ fn pathfind_to_target(
     mut set: ParamSet<(
         Query<&PathfindTarget>,
         Query<(&Transform, &HasSize)>,
-        Query<(Entity, &mut PathfindTarget, &mut Transform, &mut Movable, &HasSize)>,
+        Query<(Entity, &mut PathfindTarget, &mut Transform, &mut Movable, Option<&mut Facing>, &HasSize)>,
     )>,
     map: Res<Map>,
     mut commands: Commands,
@@ -105,12 +107,19 @@ fn pathfind_to_target(
         }
     }
 
-    for (entity, mut target, mut transform, mut movable, sized) in &mut set.p2() {
+    for (entity, mut target, mut transform, mut movable, mut facing, sized) in &mut set.p2() {
         let current_point = transform_to_map_pos(&transform, &map, &sized.size);
         if target.next_point.map_or(true, |point| current_point == point) {
             // We're within the right tile, but still need to move to the right subtile coordinates.
             if !is_tile_aligned(&transform, &map, &sized) {
-                move_to_screen_point(&transform, &mut movable, target.next_point.unwrap(), &sized, &map);
+                move_to_screen_point(
+                    &transform,
+                    &mut movable,
+                    facing.as_mut().map(DerefMut::deref_mut),
+                    target.next_point.unwrap(),
+                    &sized,
+                    &map,
+                );
                 continue;
             }
 
@@ -160,7 +169,12 @@ fn pathfind_to_target(
                 }
             }
         } else {
-            move_to_point(&mut movable, current_point, target.next_point.unwrap());
+            move_to_point(
+                &mut movable,
+                facing.as_mut().map(DerefMut::deref_mut),
+                current_point,
+                target.next_point.unwrap(),
+            );
         }
     }
 }

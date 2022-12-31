@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::entity::Paused;
+use crate::entity::{Facing, FacingDirection, Paused};
 use crate::geom::{
     MapPos, MapSize, HasSize, transform_to_map_pos, map_to_screen, screen_to_map_pos_inner
 };
@@ -16,18 +16,26 @@ impl Plugin for MovablePlugin {
 // Set up an entity to move from its current screen-space position to the screen-space point
 // corresponding to the provided map point. This is used for subtile movement to ensure smooth
 // transitions between tiles.
-pub fn move_to_screen_point(transform: &Transform, movable: &mut Movable, next: MapPos, sized: &HasSize, map: &Map) {
+pub fn move_to_screen_point(
+    transform: &Transform,
+    movable: &mut Movable,
+    facing: Option<&mut Facing>,
+    next: MapPos,
+    sized: &HasSize,
+    map: &Map,
+) {
     let next = map_to_screen(&next, &sized.size, &map);
 
     let delta = next.x - transform.translation.x;
     let mut subtile_max = Vec2::new(delta, 0.);
     let speed = movable.entity_speed;
+    let mut direction = None;
     if next.x < transform.translation.x {
         movable.speed.x = -speed;
-        movable.direction = MoveDirection::Left;
+        direction = Some(FacingDirection::Left);
     } else if next.x > transform.translation.x {
         movable.speed.x = speed;
-        movable.direction = MoveDirection::Right;
+        direction = Some(FacingDirection::Right);
     } else {
         movable.speed.x = 0.;
     }
@@ -38,14 +46,18 @@ pub fn move_to_screen_point(transform: &Transform, movable: &mut Movable, next: 
     let speed = movable.entity_speed;
     if next.y > transform.translation.y {
         movable.speed.y = speed;
-        movable.direction = MoveDirection::Up;
+        direction = Some(FacingDirection::Up);
         subtile_max.y = delta;
     } else if next.y < transform.translation.y {
         movable.speed.y = -speed;
-        movable.direction = MoveDirection::Down;
+        direction = Some(FacingDirection::Down);
         subtile_max.y = -delta;
     } else {
         movable.speed.y = 0.;
+    }
+
+    if let (Some(facing), Some(direction)) = (facing, direction) {
+        facing.0 = direction;
     }
 
     // We know how far this entity is from the tile boundary of the tile that it is
@@ -53,27 +65,37 @@ pub fn move_to_screen_point(transform: &Transform, movable: &mut Movable, next: 
     movable.subtile_max = Some(subtile_max);
 }
 
-pub fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos) {
+pub fn move_to_point(
+    movable: &mut Movable,
+    facing: Option<&mut Facing>,
+    current: MapPos,
+    next: MapPos,
+) {
     let speed = movable.entity_speed;
     movable.subtile_max = None;
+    let mut direction = None;
     if next.x < current.x {
         movable.speed.x = -speed;
-        movable.direction = MoveDirection::Left;
+        direction = Some(FacingDirection::Left);
     } else if next.x > current.x {
         movable.speed.x = speed;
-        movable.direction = MoveDirection::Right;
+        direction = Some(FacingDirection::Right);
     } else {
         movable.speed.x = 0.;
     }
 
     if next.y < current.y {
         movable.speed.y = speed;
-        movable.direction = MoveDirection::Up;
+        direction = Some(FacingDirection::Up);
     } else if next.y > current.y {
         movable.speed.y = -speed;
-        movable.direction = MoveDirection::Down;
+        direction = Some(FacingDirection::Down);
     } else {
         movable.speed.y = 0.
+    }
+
+    if let (Some(facing), Some(direction)) = (facing, direction) {
+        facing.0 = direction;
     }
 }
 
@@ -94,33 +116,15 @@ pub fn reset_movable_pos(transform: &mut Transform, movable: &mut Movable, sized
     movable.speed = Vec2::ZERO;
 }
 
-pub enum MoveDirection {
-    Up,
-    Down,
-    Left,
-    Right,
-}
 
 #[derive(Component)]
 pub struct Movable {
     pub speed: Vec2,
     pub size: Vec2,
     pub entity_speed: f32,
-    pub direction: MoveDirection,
     // When present, used to clamp any movement in one frame so it does not
     // exceed the vector given.
     pub subtile_max: Option<Vec2>,
-}
-
-impl MoveDirection {
-    pub fn anim_index(&self) -> usize {
-        match self {
-            MoveDirection::Down => 0,
-            MoveDirection::Right => 1,
-            MoveDirection::Up => 2,
-            MoveDirection::Left => 3,
-        }
-    }
 }
 
 struct MovingEntity {
