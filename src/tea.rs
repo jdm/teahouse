@@ -1,10 +1,11 @@
 use bevy::prelude::*;
+use bevy::utils::Instant;
 use crate::entity::{Item, Player};
 use crate::interaction::Interactable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use rand_derive2::RandGen;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 #[derive(Component)]
 pub struct TeaStash {

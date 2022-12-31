@@ -2824,6 +2824,7 @@ version = "0.1.0"
 dependencies = [
  "basic-pathfinding",
  "bevy",
+ "console_error_panic_hook",
  "rand",
  "rand_derive2",
 ]

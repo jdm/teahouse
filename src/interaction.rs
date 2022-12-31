@@ -9,7 +9,6 @@ use crate::geom::HasSize;
 use crate::movable::Movable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::tea::{TeaPot, TeaStash};
-use std::time::Instant;
 
 #[derive(Component)]
 pub struct Interactable {
@@ -80,6 +79,7 @@ pub fn keyboard_input(
     mut teapot: Query<&mut TeaPot, With<Player>>,
     asset_server: Res<AssetServer>,
     mut status_events: EventWriter<StatusEvent>,
+    time: Res<Time>,
 ) {
     let (player_entity, mut player, mut movable) = q.single_mut();
 
@@ -144,7 +144,7 @@ pub fn keyboard_input(
                     let teapot = teapot.single();
                     commands.entity(player_entity).remove::<TeaPot>();
                     let mut delivered = (*teapot).clone();
-                    delivered.steeped_for = Some(Instant::now() - delivered.steeped_at.unwrap());
+                    delivered.steeped_for = Some(time.last_update().unwrap() - delivered.steeped_at.unwrap());
                     commands.entity(customer_entity).insert(delivered);
 
                     let (reaction, conversation) = tea_delivery(&teapot);
@@ -185,18 +185,23 @@ pub fn keyboard_input(
                 continue;
             }
 
+            info!("interacting with kettle");
+
             let mut teapot = teapot.single_mut();
 
             let message = if !player.carrying.is_empty() {
+            info!("player not carrying");
                 let mut ingredients = player
                     .carrying
                     .keys()
                     .map(|k| format!("{:?}", k))
                     .collect::<Vec<_>>();
+            info!("got ingredients");
 
                 teapot.water = 100;
                 teapot.ingredients = std::mem::take(&mut player.carrying);
-                teapot.steeped_at = Some(Instant::now());
+                teapot.steeped_at = Some(time.last_update().unwrap());
+            info!("making message");
 
                 ingredients.insert(0, "the".to_owned());
                 let ingredients = ingredients.join(" and the ");
@@ -204,12 +209,15 @@ pub fn keyboard_input(
             } else {
                 "You need ingredients to steep before adding the water.".to_owned()
             };
+            info!("sending event");
 
             status_events.send(StatusEvent::timed_message(
                 player_entity,
                 message,
                 DEFAULT_EXPIRY,
             ));
+
+            info!("continuing onwards");
 
         }
     }

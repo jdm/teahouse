@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 pub static MAP: &[&str] = &[
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx",
-    "xb....................................xsssxxxxx",
+    "xb....................................xxxxxxxxx",
     "x.k.............P............................tx",
     "x..........c......................xx.........tx",
     "x........cxxx...........c...........xxxKx....tx",
