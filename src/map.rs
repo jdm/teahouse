@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use crate::entity::*;
-use crate::geom::*;
+use crate::entity::EntityType;
+use crate::geom::{MapPos, MapSize};
 use crate::tea::Ingredient;
 use rand::Rng;
 use std::collections::HashMap;

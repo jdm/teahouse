@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::map::*;
+use crate::map::Map;
 use crate::movable::Movable;
 
 pub const TILE_SIZE: f32 = 16.0;

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
-use crate::entity::*;
+use crate::entity::{Player, SPEED};
 use crate::geom::HasSize;
 use crate::movable::Movable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};

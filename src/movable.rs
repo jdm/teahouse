@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use crate::entity::Paused;
-use crate::geom::*;
+use crate::geom::{
+    MapPos, MapSize, HasSize, transform_to_map_pos, map_to_screen, screen_to_map_pos_inner
+};
 use crate::map::Map;
 
 // Set up an entity to move from its current screen-space position to the screen-space point

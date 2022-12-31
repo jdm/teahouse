@@ -4,8 +4,10 @@ use basic_pathfinding::grid::{Grid, GridType};
 use basic_pathfinding::pathfinding::find_path as base_find_path;
 use basic_pathfinding::pathfinding::SearchOpts;
 use crate::debug::{DebugTile, DebugSettings, create_debug_path};
-use crate::geom::*;
-use crate::movable::*;
+use crate::geom::{HasSize, MapPos, MapSize, transform_to_map_pos};
+use crate::movable::{
+    Movable, move_to_point, is_tile_aligned, move_to_screen_point, reset_movable_pos
+};
 use crate::map::Map;
 use rand::seq::IteratorRandom;
 use std::collections::HashMap;

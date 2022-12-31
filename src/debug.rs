@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::customer::NewCustomerEvent;
-use crate::geom::*;
-use crate::map::*;
+use crate::geom::{MapPos, MapSize, map_to_screen};
+use crate::map::Map;
 use std::default::Default;
 
 #[derive(Resource, Default)]
