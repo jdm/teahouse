@@ -31,7 +31,7 @@ impl Default for Interactable {
 
 pub fn highlight_interactable(
     player: Query<(&Transform, &Movable), With<Player>>,
-    mut interactable: Query<(Entity, &mut Interactable, &Transform, &mut Sprite, &HasSize)>,
+    mut interactable: Query<(Entity, &mut Interactable, &Transform, Option<&mut Sprite>, &HasSize)>,
     mut status_events: EventWriter<StatusEvent>,
 ) {
     let (player_transform, player_movable) = player.single();
@@ -46,8 +46,12 @@ pub fn highlight_interactable(
         );
         if collision.is_some() {
             if interactable.previous.is_none() {
-                interactable.previous = Some(sprite.color);
-                sprite.color = interactable.highlight;
+                if let Some(ref mut sprite) = sprite {
+                    interactable.previous = Some(sprite.color);
+                    sprite.color = interactable.highlight;
+                } else {
+                    interactable.previous = Some(Color::WHITE);
+                }
 
                 status_events.send(StatusEvent::timed_message(
                     entity,
@@ -58,7 +62,10 @@ pub fn highlight_interactable(
             interactable.colliding = true;
             break;
         } else if collision.is_none() && interactable.previous.is_some() {
-            sprite.color = interactable.previous.take().unwrap();
+            let previous = interactable.previous.take();
+            if let Some(ref mut sprite) = sprite {
+                sprite.color = previous.unwrap();
+            }
             interactable.colliding = false;
 
             status_events.send(StatusEvent::clear(entity));
