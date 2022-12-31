@@ -12,7 +12,9 @@ use crate::movable::move_movables;
 use crate::pathfinding::{
     PathingGrid, update_pathing_grid, pathfind_to_target
 };
-use crate::tea::{interact_with_stash, interact_with_cupboards, interact_with_kettles};
+use crate::tea::{
+    interact_with_stash, interact_with_cupboards, interact_with_kettles, interact_with_teapot
+};
 
 mod animation;
 mod cat;
@@ -52,7 +54,6 @@ fn main() {
                 .with_system(keyboard_input.before(move_movables))
                 .with_system(debug_keys)
                 .with_system(highlight_interactable)
-                .with_system(tea::interact)
                 .with_system(bevy::window::close_on_esc)
         )
         .add_system_set(
@@ -73,6 +74,7 @@ fn main() {
         .add_system(interact_with_customers)
         .add_system(interact_with_cat)
         .add_system(interact_with_kettles)
+        .add_system(interact_with_teapot)
         .add_event::<StatusEvent>()
         .add_event::<NewCustomerEvent>()
         .add_event::<PlayerInteracted>()
