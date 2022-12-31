@@ -102,13 +102,13 @@ pub fn keyboard_input(
     }
 
     if keys.just_released(KeyCode::X) {
-        for (entity, mut stash, interactable) in &mut interactables {
+        for (_entity, mut stash, interactable) in &mut interactables {
             if interactable.colliding {
                 stash.amount -= 1;
                 let amount = player.carrying.entry(stash.ingredient).or_insert(0);
                 *amount += 1;
                 status_events.send(StatusEvent::timed_message(
-                    entity,
+                    player_entity,
                     format!("You take a little {:?} ({} remaining)", stash.ingredient, stash.amount),
                     DEFAULT_EXPIRY,
                 ));
@@ -116,7 +116,7 @@ pub fn keyboard_input(
             }
         }
 
-        for (entity, mut cupboard, interactable) in &mut cupboards {
+        for (_entity, mut cupboard, interactable) in &mut cupboards {
             if interactable.colliding {
                 let message = if cupboard.teapots > 0 {
                     if teapot.is_empty() {
@@ -130,7 +130,7 @@ pub fn keyboard_input(
                     "No teapots remaining.".to_string()
                 };
                 status_events.send(StatusEvent::timed_message(
-                    entity,
+                    player_entity,
                     message.to_string(),
                     DEFAULT_EXPIRY,
                 ));
@@ -159,11 +159,11 @@ pub fn keyboard_input(
             }
         }
 
-        for (entity, cat, interactable, mut affection) in &mut cat {
+        for (_entity, cat, interactable, mut affection) in &mut cat {
             if interactable.colliding {
                 let (reaction, message) = petting_reaction(&cat, &affection);
                 status_events.send(StatusEvent::timed_message(
-                    entity,
+                    player_entity,
                     message,
                     DEFAULT_EXPIRY,
                 ));
@@ -172,13 +172,13 @@ pub fn keyboard_input(
             }
         }
 
-        for (entity, interactable) in &kettles {
+        for (_entity, interactable) in &kettles {
             if !interactable.colliding {
                 continue;
             }
             if teapot.is_empty() {
                 status_events.send(StatusEvent::timed_message(
-                    entity,
+                    player_entity,
                     "You need a teapot to use the kettle.".to_owned(),
                     DEFAULT_EXPIRY,
                 ));
@@ -206,7 +206,7 @@ pub fn keyboard_input(
             };
 
             status_events.send(StatusEvent::timed_message(
-                entity,
+                player_entity,
                 message,
                 DEFAULT_EXPIRY,
             ));
