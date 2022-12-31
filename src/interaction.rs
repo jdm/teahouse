@@ -185,40 +185,30 @@ pub fn keyboard_input(
                 continue;
             }
 
-            info!("interacting with kettle");
-
             let mut teapot = teapot.single_mut();
 
             let message = if !player.carrying.is_empty() {
-            info!("player not carrying");
-                let mut ingredients = player
+                let ingredients = player
                     .carrying
                     .keys()
                     .map(|k| format!("{:?}", k))
                     .collect::<Vec<_>>();
-            info!("got ingredients");
 
                 teapot.water = 100;
                 teapot.ingredients = std::mem::take(&mut player.carrying);
                 teapot.steeped_at = Some(time.last_update().unwrap());
-            info!("making message");
 
-                ingredients.insert(0, "the".to_owned());
                 let ingredients = ingredients.join(" and the ");
-                format!("You add {} to the teapot and fill it with boiling water.", ingredients)
+                format!("You add the {} to the teapot and fill it with boiling water.", ingredients)
             } else {
                 "You need ingredients to steep before adding the water.".to_owned()
             };
-            info!("sending event");
 
             status_events.send(StatusEvent::timed_message(
                 player_entity,
                 message,
                 DEFAULT_EXPIRY,
             ));
-
-            info!("continuing onwards");
-
         }
     }
 }
