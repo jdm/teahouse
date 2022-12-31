@@ -34,7 +34,8 @@ fn main() {
 
     let map = read_map(MAP);
 
-    App::new()
+    let mut app = App::new();
+    app
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup)
         .add_state(GameState::InGame)
@@ -66,10 +67,28 @@ fn main() {
         .add_event::<StatusEvent>()
         .add_event::<NewCustomerEvent>()
         .init_resource::<PathingGrid>()
-        .init_resource::<DebugSettings>()
-        .run();
+        .init_resource::<DebugSettings>();
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        app.add_system(handle_browser_resize);
+    }
+
+    app.run();
 }
 
+#[cfg(target_arch = "wasm32")]
+fn handle_browser_resize(mut windows: ResMut<Windows>) {
+    let window = windows.get_primary_mut().unwrap();
+    let wasm_window = web_sys::window().unwrap();
+    let (target_width, target_height) = (
+        wasm_window.inner_width().unwrap().as_f64().unwrap() as f32,
+        wasm_window.inner_height().unwrap().as_f64().unwrap() as f32,
+    );
+    if window.width() != target_width || window.height() != target_height {
+        window.set_resolution(target_width, target_height);
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum GameState {
