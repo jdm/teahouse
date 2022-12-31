@@ -179,12 +179,15 @@ pub fn move_movables(
     let mut colliding_entities = vec![];
     let q = set.p0();
     for (moving, movable, transform, sized) in &q {
-        for (fixed, movable2, transform2, sized2) in &q {
+        for (fixed, _movable2, transform2, sized2) in &q {
             if moving == fixed {
                 continue;
             }
 
-            if movable.speed == Vec2::ZERO && movable2.speed == Vec2::ZERO {
+            // If one of the entities is not moving, the collision check will still take
+            // place from the perspective of the entity that _is_ moving. If neither entity
+            // is moving, we can skip the check entirely.
+            if movable.speed == Vec2::ZERO {
                 continue;
             }
 
