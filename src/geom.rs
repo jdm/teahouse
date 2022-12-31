@@ -45,8 +45,10 @@ pub fn screen_to_map_pos(x: f32, y: f32, map: &Map, size: &MapSize) -> MapPos {
 pub fn screen_to_map_pos_inner(x: f32, y: f32, map: &MapSize, size: &MapSize) -> MapPos {
     let x = (x - size.width as f32 * TILE_SIZE / 2.) / TILE_SIZE + map.width as f32 / 2.;
     let y = -((y + size.height as f32 * TILE_SIZE / 2.) / TILE_SIZE - map.height as f32 / 2.);
-    assert!(x >= 0.);
-    assert!(y >= 0.);
+    //FIXME: Sometimes trigger on web when tab is ignored for long enough.
+    //       Likely too-long timesteps mean that entities can walk through walls.
+    //assert!(x >= 0.);
+    //assert!(y >= 0.);
     MapPos { x: x as usize, y: y as usize }
 }
 
