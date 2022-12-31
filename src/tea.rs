@@ -40,6 +40,12 @@ pub enum Ingredient {
     Honey,
     Milk,
     Lemon,
+    Rooibos,
+    GreenTea,
+    Matcha,
+    Ceylon,
+    Cream,
+    BrownSugar,
 }
 
 pub fn interact_with_teapot(
