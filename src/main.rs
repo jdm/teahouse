@@ -1,17 +1,18 @@
 use bevy::prelude::*;
 use crate::animation::animate_sprite;
-use crate::cat::run_cat;
-use crate::customer::{run_customer, customer_spawner, spawn_customer_by_door, NewCustomerEvent};
+use crate::cat::{run_cat, interact_with_cat};
+use crate::customer::{run_customer, customer_spawner, spawn_customer_by_door, interact_with_customers, NewCustomerEvent};
 use crate::debug::{DebugSettings, debug_keys};
 use crate::dialog::{run_dialog, exit_dialog};
 use crate::entity::setup;
-use crate::interaction::*;
+use crate::interaction::{highlight_interactable, keyboard_input, PlayerInteracted};
 use crate::map::{read_map, MAP};
 use crate::message_line::{update_status_line, StatusEvent};
 use crate::movable::move_movables;
 use crate::pathfinding::{
     PathingGrid, update_pathing_grid, pathfind_to_target
 };
+use crate::tea::{interact_with_stash, interact_with_cupboards, interact_with_kettles};
 
 mod animation;
 mod cat;

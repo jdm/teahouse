@@ -7,7 +7,7 @@ use crate::interaction::*;
 use crate::map::Map;
 use crate::movable::*;
 use crate::message_line::{StatusMessage, StatusMessageBundle};
-use crate::tea::{Ingredient, TeaStash, TeaPot};
+use crate::tea::{Ingredient, TeaStash, TeaPot, Kettle, Cupboard};
 use rand::Rng;
 use std::collections::HashMap;
 use std::default::Default;
@@ -69,24 +69,13 @@ impl Affection {
 pub struct Prop;
 
 #[derive(Component)]
-pub struct Kettle;
-
-#[derive(Component)]
 pub struct Stove;
 
 #[derive(Component)]
 pub struct Door;
 
 #[derive(Component)]
-pub struct CatBed;
-
-#[derive(Component)]
 pub struct Chair;
-
-#[derive(Component)]
-pub struct Cupboard {
-    pub teapots: u32,
-}
 
 #[derive(Component, Default)]
 pub struct Player {

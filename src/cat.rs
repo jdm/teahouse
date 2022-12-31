@@ -1,10 +1,15 @@
 use bevy::prelude::*;
 use crate::customer::Customer;
-use crate::entity::{Affection, RelationshipStatus, CatBed, Player, Reaction};
+use crate::entity::{Affection, RelationshipStatus, Player, Reaction};
+use crate::interaction::PlayerInteracted;
+use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::pathfinding::PathfindTarget;
 //use rand::Rng;
 use rand::seq::IteratorRandom;
 use std::time::Duration;
+
+#[derive(Component)]
+pub struct CatBed;
 
 #[derive(Debug)]
 pub enum CatState {
@@ -87,5 +92,26 @@ pub fn run_cat(
 
     if sleep {
         cat.state = CatState::Sleeping(create_sleep_timer());
+    }
+}
+
+pub fn interact_with_cat(
+    mut player_interacted_events: EventReader<PlayerInteracted>,
+    mut cat: Query<(&Cat, &mut Affection)>,
+    mut status_events: EventWriter<StatusEvent>,
+) {
+    for event in player_interacted_events.iter() {
+        let (cat, mut affection) = match cat.get_mut(event.interacted_entity) {
+            Ok(result) => result,
+            Err(_) => continue,
+        };
+        let (reaction, message) = petting_reaction(&cat, &affection);
+        status_events.send(StatusEvent::timed_message(
+            event.player_entity,
+            message,
+            DEFAULT_EXPIRY,
+        ));
+
+        affection.react(reaction);
     }
 }

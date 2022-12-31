@@ -1,6 +1,9 @@
 use bevy::prelude::*;
-use crate::entity::{Chair, Door, Reaction, EntityType, Paused, spawn_sprite};
+use crate::GameState;
+use crate::dialog::show_message_box;
+use crate::entity::{Chair, Door, Reaction, EntityType, Paused, Affection, Player, spawn_sprite};
 use crate::geom::{MapSize, transform_to_screenrect, map_to_screen, transform_to_map_pos, HasSize};
+use crate::interaction::PlayerInteracted;
 use crate::map::Map;
 use crate::movable::Movable;
 use crate::pathfinding::PathfindTarget;
@@ -18,7 +21,7 @@ pub fn conversation() -> Vec<String> {
     ];
 }
 
-pub fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
+fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
     let hint = teapot
         .ingredients
         .iter()
@@ -172,5 +175,43 @@ pub fn customer_spawner(
     if state.customer_timer.finished() {
         state.customer_timer = create_customer_timer();
         customer_events.send(NewCustomerEvent);
+    }
+}
+
+pub fn interact_with_customers(
+    mut player_interacted_events: EventReader<PlayerInteracted>,
+    mut customers: Query<(Entity, &mut Affection), With<Customer>>,
+    teapot: Query<&TeaPot, With<Player>>,
+    asset_server: Res<AssetServer>,
+    mut game_state: ResMut<State<GameState>>,
+    time: Res<Time>,
+    mut commands: Commands,
+) {
+    for event in player_interacted_events.iter() {
+        let (customer_entity, mut affection) = match customers.get_mut(event.interacted_entity) {
+            Ok(result) => result,
+            Err(_) => continue,
+        };
+        if !teapot.is_empty() {
+            let teapot = teapot.single();
+
+            if teapot.steeped_at.is_some() {
+                commands.entity(event.player_entity).remove::<TeaPot>();
+                let mut delivered = (*teapot).clone();
+                //FIXME: wasm issues
+                delivered.steeped_for = Some(time.last_update().unwrap() - delivered.steeped_at.unwrap());
+                commands.entity(customer_entity).insert(delivered);
+
+                let (reaction, conversation) = tea_delivery(&teapot);
+                affection.react(reaction);
+                game_state.set(GameState::Dialog).unwrap();
+                show_message_box(customer_entity, &mut commands, conversation, asset_server);
+                return;
+            }
+        }
+
+        game_state.set(GameState::Dialog).unwrap();
+        show_message_box(customer_entity, &mut commands, conversation(), asset_server);
+        return;
     }
 }
