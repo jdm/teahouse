@@ -142,19 +142,24 @@ pub fn keyboard_input(
             if interactable.colliding {
                 if !teapot.is_empty() {
                     let teapot = teapot.single();
-                    commands.entity(player_entity).remove::<TeaPot>();
-                    let mut delivered = (*teapot).clone();
-                    delivered.steeped_for = Some(time.last_update().unwrap() - delivered.steeped_at.unwrap());
-                    commands.entity(customer_entity).insert(delivered);
 
-                    let (reaction, conversation) = tea_delivery(&teapot);
-                    affection.react(reaction);
-                    game_state.set(GameState::Dialog).unwrap();
-                    show_message_box(customer_entity, &mut commands, conversation, asset_server);
-                } else {
-                    game_state.set(GameState::Dialog).unwrap();
-                    show_message_box(customer_entity, &mut commands, conversation(), asset_server);
+                    if teapot.steeped_at.is_some() {
+                        commands.entity(player_entity).remove::<TeaPot>();
+                        let mut delivered = (*teapot).clone();
+                        //FIXME: wasm issues
+                        delivered.steeped_for = Some(time.last_update().unwrap() - delivered.steeped_at.unwrap());
+                        commands.entity(customer_entity).insert(delivered);
+
+                        let (reaction, conversation) = tea_delivery(&teapot);
+                        affection.react(reaction);
+                        game_state.set(GameState::Dialog).unwrap();
+                        show_message_box(customer_entity, &mut commands, conversation, asset_server);
+                        return;
+                    }
                 }
+
+                game_state.set(GameState::Dialog).unwrap();
+                show_message_box(customer_entity, &mut commands, conversation(), asset_server);
                 return;
             }
         }
