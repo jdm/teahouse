@@ -8,6 +8,17 @@ use crate::pathfinding::PathfindTarget;
 use rand::seq::IteratorRandom;
 use std::time::Duration;
 
+pub struct CatPlugin;
+
+impl Plugin for CatPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_system(interact_with_cat)
+            .add_system(run_cat);
+    }
+}
+
+
 #[derive(Component)]
 pub struct CatBed;
 
@@ -57,7 +68,7 @@ pub fn petting_reaction(cat: &Cat, affection: &Affection) -> (Reaction, String) 
     (reaction, message)
 }
 
-pub fn run_cat(
+fn run_cat(
     mut cat: Query<(Entity, &mut Cat, Option<&PathfindTarget>)>,
     cat_bed: Query<(Entity, &CatBed)>,
     humans: Query<Entity, Or<(With<Player>, With<Customer>)>>,
@@ -95,7 +106,7 @@ pub fn run_cat(
     }
 }
 
-pub fn interact_with_cat(
+fn interact_with_cat(
     mut player_interacted_events: EventReader<PlayerInteracted>,
     mut cat: Query<(&Cat, &mut Affection)>,
     mut status_events: EventWriter<StatusEvent>,

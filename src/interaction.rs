@@ -1,9 +1,24 @@
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
+use crate::GameState;
 use crate::entity::{Player, SPEED};
 use crate::geom::HasSize;
 use crate::movable::Movable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
+
+pub struct InteractionPlugin;
+
+impl Plugin for InteractionPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_event::<PlayerInteracted>()
+            .add_system_set(
+                SystemSet::on_update(GameState::InGame)
+                    .with_system(keyboard_input)
+                    .with_system(highlight_interactable)
+            );
+    }
+}
 
 #[derive(Component)]
 pub struct Interactable {
@@ -24,7 +39,7 @@ impl Default for Interactable {
     }
 }
 
-pub fn highlight_interactable(
+fn highlight_interactable(
     player: Query<(&Transform, &Movable), (With<Player>, Changed<Transform>)>,
     mut interactable: Query<(Entity, &mut Interactable, &Transform, Option<&mut Sprite>, &HasSize), Changed<Transform>>,
     mut status_events: EventWriter<StatusEvent>,
@@ -76,7 +91,7 @@ pub struct PlayerInteracted {
     pub interacted_entity: Entity,
 }
 
-pub fn keyboard_input(
+fn keyboard_input(
     keys: Res<Input<KeyCode>>,
     mut q: Query<(Entity, &mut Movable), With<Player>>,
     mut interacted_events: EventWriter<PlayerInteracted>,

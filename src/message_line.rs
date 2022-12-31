@@ -1,6 +1,16 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
+pub struct MessageLinePlugin;
+
+impl Plugin for MessageLinePlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_system(update_status_line)
+            .add_event::<StatusEvent>();
+    }
+}
+
 pub const DEFAULT_EXPIRY: Duration = Duration::from_secs(5);
 
 #[derive(Component, Default)]
@@ -50,7 +60,7 @@ impl StatusEvent {
     }
 }
 
-pub fn update_status_line(
+fn update_status_line(
     mut status_events: EventReader<StatusEvent>,
     mut status: Query<(&mut StatusMessage, &mut Text)>,
     time: Res<Time>,

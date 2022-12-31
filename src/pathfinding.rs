@@ -6,19 +6,30 @@ use basic_pathfinding::pathfinding::SearchOpts;
 use crate::debug::{DebugTile, DebugSettings, create_debug_path};
 use crate::geom::{HasSize, MapPos, MapSize, transform_to_map_pos};
 use crate::movable::{
-    Movable, move_to_point, is_tile_aligned, move_to_screen_point, reset_movable_pos
+    Movable, move_to_point, is_tile_aligned, move_to_screen_point, reset_movable_pos, move_movables
 };
 use crate::map::Map;
 use rand::seq::IteratorRandom;
 use std::collections::HashMap;
 use std::default::Default;
 
+pub struct PathfindingPlugin;
+
+impl Plugin for PathfindingPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_system(update_pathing_grid)
+            .add_system(pathfind_to_target.after(update_pathing_grid).before(move_movables))
+            .init_resource::<PathingGrid>();
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct PathingGrid {
     grid: Grid,
 }
 
-pub fn update_pathing_grid(
+fn update_pathing_grid(
     entities: Query<(&Movable, &Transform, &HasSize)>,
     map: Res<Map>,
     mut grid: ResMut<PathingGrid>,
@@ -65,7 +76,7 @@ impl PathfindTarget {
     }
 }
 
-pub fn pathfind_to_target(
+fn pathfind_to_target(
     mut set: ParamSet<(
         Query<&PathfindTarget>,
         Query<(&Transform, &HasSize)>,

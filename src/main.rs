@@ -1,20 +1,16 @@
 use bevy::prelude::*;
-use crate::animation::animate_sprite;
-use crate::cat::{run_cat, interact_with_cat};
-use crate::customer::{run_customer, customer_spawner, spawn_customer_by_door, interact_with_customers, NewCustomerEvent};
-use crate::debug::{DebugSettings, debug_keys};
-use crate::dialog::{run_dialog, exit_dialog};
+use crate::animation::AnimationPlugin;
+use crate::cat::CatPlugin;
+use crate::customer::CustomerPlugin;
+use crate::debug::DebugPlugin;
+use crate::dialog::DialogPlugin;
 use crate::entity::setup;
-use crate::interaction::{highlight_interactable, keyboard_input, PlayerInteracted};
-use crate::map::{read_map, MAP};
-use crate::message_line::{update_status_line, StatusEvent};
-use crate::movable::move_movables;
-use crate::pathfinding::{
-    PathingGrid, update_pathing_grid, pathfind_to_target
-};
-use crate::tea::{
-    interact_with_stash, interact_with_cupboards, interact_with_kettles, interact_with_teapot
-};
+use crate::interaction::InteractionPlugin;
+use crate::map::MapPlugin;
+use crate::message_line::MessageLinePlugin;
+use crate::movable::MovablePlugin;
+use crate::pathfinding::PathfindingPlugin;
+use crate::tea::TeaPlugin;
 
 mod animation;
 mod cat;
@@ -37,49 +33,23 @@ fn main() {
         console_error_panic_hook::set_once();
     }
 
-    let map = read_map(MAP);
-
     let mut app = App::new();
     app
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
-        .add_startup_system(setup)
+        .add_plugin(TeaPlugin)
+        .add_plugin(CustomerPlugin)
+        .add_plugin(CatPlugin)
+        .add_plugin(InteractionPlugin)
+        .add_plugin(AnimationPlugin)
+        .add_plugin(MessageLinePlugin)
+        .add_plugin(DebugPlugin)
+        .add_plugin(PathfindingPlugin)
+        .add_plugin(DialogPlugin)
+        .add_plugin(MovablePlugin)
+        .add_plugin(MapPlugin)
         .add_state(GameState::InGame)
-        .add_system(update_pathing_grid)
-        .add_system(move_movables)
-        .insert_resource(map)
-        .add_system(run_customer)
-        .add_system(pathfind_to_target.after(update_pathing_grid).before(move_movables))
-        .add_system_set(
-            SystemSet::on_update(GameState::InGame)
-                .with_system(keyboard_input.before(move_movables))
-                .with_system(debug_keys)
-                .with_system(highlight_interactable)
-                .with_system(bevy::window::close_on_esc)
-        )
-        .add_system_set(
-            SystemSet::on_update(GameState::Dialog)
-                .with_system(run_dialog)
-        )
-        .add_system_set(
-            SystemSet::on_exit(GameState::Dialog)
-                .with_system(exit_dialog)
-        )
-        .add_system(run_cat)
-        .add_system(update_status_line)
-        .add_system(customer_spawner)
-        .add_system(spawn_customer_by_door)
-        .add_system(animate_sprite)
-        .add_system(interact_with_stash)
-        .add_system(interact_with_cupboards)
-        .add_system(interact_with_customers)
-        .add_system(interact_with_cat)
-        .add_system(interact_with_kettles)
-        .add_system(interact_with_teapot)
-        .add_event::<StatusEvent>()
-        .add_event::<NewCustomerEvent>()
-        .add_event::<PlayerInteracted>()
-        .init_resource::<PathingGrid>()
-        .init_resource::<DebugSettings>();
+        .add_startup_system(setup)
+        .add_system(bevy::window::close_on_esc);
 
     #[cfg(target_arch = "wasm32")]
     {

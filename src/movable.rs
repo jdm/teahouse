@@ -5,6 +5,14 @@ use crate::geom::{
 };
 use crate::map::Map;
 
+pub struct MovablePlugin;
+
+impl Plugin for MovablePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_system(move_movables);
+    }
+}
+
 // Set up an entity to move from its current screen-space position to the screen-space point
 // corresponding to the provided map point. This is used for subtile movement to ensure smooth
 // transitions between tiles.

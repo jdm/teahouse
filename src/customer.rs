@@ -13,6 +13,19 @@ use rand::Rng;
 use std::default::Default;
 use std::time::Duration;
 
+pub struct CustomerPlugin;
+
+impl Plugin for CustomerPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_system(run_customer)
+            .add_system(customer_spawner)
+            .add_system(spawn_customer_by_door)
+            .add_system(interact_with_customers)
+            .add_event::<NewCustomerEvent>();
+    }
+}
+
 pub fn conversation() -> Vec<String> {
     return vec![
         "You: Welcome to Sereni Tea!".to_owned(),
@@ -38,7 +51,7 @@ fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
     (Reaction::Positive, conversation)
 }
 
-pub fn run_customer(
+fn run_customer(
     mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&TeaPot>, &Movable, &Transform), Without<Paused>>,
     chairs: Query<Entity, With<Chair>>,
     doors: Query<Entity, With<Door>>,
@@ -146,7 +159,7 @@ fn create_customer_timer() -> Timer {
 
 pub struct NewCustomerEvent;
 
-pub fn spawn_customer_by_door(
+fn spawn_customer_by_door(
     doors: Query<(&Transform, &HasSize), With<Door>>,
     mut events: EventReader<NewCustomerEvent>,
     mut commands: Commands,
@@ -166,7 +179,7 @@ pub fn spawn_customer_by_door(
     }
 }
 
-pub fn customer_spawner(
+fn customer_spawner(
     mut state: Local<SpawnerState>,
     mut customer_events: EventWriter<NewCustomerEvent>,
     time: Res<Time>,
@@ -178,7 +191,7 @@ pub fn customer_spawner(
     }
 }
 
-pub fn interact_with_customers(
+fn interact_with_customers(
     mut player_interacted_events: EventReader<PlayerInteracted>,
     mut customers: Query<(Entity, &mut Affection), With<Customer>>,
     teapot: Query<&TeaPot, With<Player>>,

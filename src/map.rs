@@ -5,7 +5,16 @@ use crate::tea::Ingredient;
 use rand::Rng;
 use std::collections::HashMap;
 
-pub static MAP: &[&str] = &[
+pub struct MapPlugin;
+
+impl Plugin for MapPlugin {
+    fn build(&self, app: &mut App) {
+        let map = read_map(MAP);
+        app.insert_resource(map);
+    }
+}
+
+static MAP: &[&str] = &[
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx",
     "xb....................................xxxxxxxxx",
     "x.k.............P............................tx",
@@ -31,7 +40,7 @@ pub struct Map {
     pub height: usize,
 }
 
-pub fn read_map(data: &[&str]) -> Map {
+fn read_map(data: &[&str]) -> Map {
     let mut map = Map {
         height: data.len(),
         width: data[0].len(),

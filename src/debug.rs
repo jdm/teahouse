@@ -4,6 +4,16 @@ use crate::geom::{MapPos, MapSize, map_to_screen};
 use crate::map::Map;
 use std::default::Default;
 
+pub struct DebugPlugin;
+
+impl Plugin for DebugPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_system(debug_keys)
+            .init_resource::<DebugSettings>();
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct DebugSettings {
     pub show_paths: bool,
@@ -41,7 +51,7 @@ pub fn create_debug_path(
     }
 }
 
-pub fn debug_keys(
+fn debug_keys(
     keys: Res<Input<KeyCode>>,
     mut customer_events: EventWriter<NewCustomerEvent>,
     mut settings: ResMut<DebugSettings>,

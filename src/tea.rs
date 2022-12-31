@@ -7,6 +7,18 @@ use rand_derive2::RandGen;
 use std::collections::HashMap;
 use std::time::Duration;
 
+pub struct TeaPlugin;
+
+impl Plugin for TeaPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_system(interact_with_stash)
+            .add_system(interact_with_cupboards)
+            .add_system(interact_with_kettles)
+            .add_system(interact_with_teapot);
+    }
+}
+
 #[derive(Component)]
 pub struct Kettle;
 
@@ -48,7 +60,7 @@ pub enum Ingredient {
     BrownSugar,
 }
 
-pub fn interact_with_teapot(
+fn interact_with_teapot(
     mut player_interacted_events: EventReader<PlayerInteracted>,
     teapots: Query<&TeaPot, With<Item>>,
     mut commands: Commands,
@@ -69,7 +81,7 @@ pub fn interact_with_teapot(
     }
 }
 
-pub fn interact_with_stash(
+fn interact_with_stash(
     mut q: Query<&mut Player>,
     mut player_interacted_events: EventReader<PlayerInteracted>,
     mut stash: Query<&mut TeaStash>,
@@ -93,7 +105,7 @@ pub fn interact_with_stash(
     }
 }
 
-pub fn interact_with_cupboards(
+fn interact_with_cupboards(
     mut player_interacted_events: EventReader<PlayerInteracted>,
     mut cupboards: Query<&mut Cupboard>,
     mut status_events: EventWriter<StatusEvent>,
@@ -124,7 +136,7 @@ pub fn interact_with_cupboards(
     }
 }
 
-pub fn interact_with_kettles(
+fn interact_with_kettles(
     mut player_interacted_events: EventReader<PlayerInteracted>,
     mut player: Query<(&mut Player, Option<&mut TeaPot>)>,
     kettles: Query<&Kettle>,

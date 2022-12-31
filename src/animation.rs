@@ -1,6 +1,15 @@
 use bevy::prelude::*;
 use crate::movable::Movable;
 
+pub struct AnimationPlugin;
+
+impl Plugin for AnimationPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_system(animate_sprite);
+    }
+}
+
 #[derive(Resource)]
 pub struct TextureResources {
     pub atlas: Handle<TextureAtlas>,
@@ -10,7 +19,7 @@ pub struct TextureResources {
 #[derive(Component, Deref, DerefMut)]
 pub struct AnimationTimer(pub Timer);
 
-pub fn animate_sprite(
+fn animate_sprite(
     time: Res<Time>,
     texture_resources: Res<TextureResources>,
     mut query: Query<(

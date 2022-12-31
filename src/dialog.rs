@@ -2,6 +2,22 @@ use bevy::prelude::*;
 use crate::entity::Paused;
 use crate::GameState;
 
+pub struct DialogPlugin;
+
+impl Plugin for DialogPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_system_set(
+                SystemSet::on_update(GameState::Dialog)
+                    .with_system(run_dialog)
+            )
+            .add_system_set(
+                SystemSet::on_exit(GameState::Dialog)
+                    .with_system(exit_dialog)
+            );
+    }
+}
+
 #[derive(Component)]
 pub struct MessageBox;
 
@@ -79,7 +95,7 @@ pub fn show_message_box(
     });
 }
 
-pub fn exit_dialog(
+fn exit_dialog(
     conversation: Query<(Entity, &Conversation)>,
     paused: Query<Entity, With<Paused>>,
     mut commands: Commands,
@@ -93,7 +109,7 @@ pub fn exit_dialog(
     }
 }
 
-pub fn run_dialog(
+fn run_dialog(
     mut conversation: Query<&mut Conversation>,
     mut text_box: Query<&mut Text, With<MessageBox>>,
     keys: Res<Input<KeyCode>>,
