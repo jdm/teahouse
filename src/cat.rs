@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use crate::customer::Customer;
 use crate::entity::{Affection, RelationshipStatus, CatBed, Player, Reaction};
 use crate::pathfinding::PathfindTarget;
-use rand::Rng;
+//use rand::Rng;
 use rand::seq::IteratorRandom;
 use std::time::Duration;
 
@@ -18,8 +18,8 @@ pub struct Cat {
     state: CatState,
 }
 
-const MIN_SLEEP_TIME: u64 = 30;
-const MAX_SLEEP_TIME: u64 = 60;
+//const MIN_SLEEP_TIME: u64 = 30;
+//const MAX_SLEEP_TIME: u64 = 60;
 
 fn create_sleep_timer() -> Timer {
     /*let mut rng = rand::thread_rng();
@@ -53,13 +53,13 @@ pub fn petting_reaction(cat: &Cat, affection: &Affection) -> (Reaction, String) 
 }
 
 pub fn run_cat(
-    mut cat: Query<(Entity, &mut Cat, Option<&PathfindTarget>, &mut Transform)>,
+    mut cat: Query<(Entity, &mut Cat, Option<&PathfindTarget>)>,
     cat_bed: Query<(Entity, &CatBed)>,
     humans: Query<Entity, Or<(With<Player>, With<Customer>)>>,
     time: Res<Time>,
     mut commands: Commands,
 ) {
-    let (entity, mut cat, target, mut transform) = cat.single_mut();
+    let (entity, mut cat, target) = cat.single_mut();
     let mut find_entity = false;
     let mut find_bed = false;
     let mut sleep = false;
@@ -67,14 +67,12 @@ pub fn run_cat(
         CatState::Sleeping(ref mut timer) => {
             timer.tick(time.delta());
             find_entity = timer.finished();
-            //transform.scale = Vec2::splat(time.elapsed_seconds().sin() + 0.5).extend(0.);
         }
         CatState::MovingToEntity => find_bed = target.is_none(),
         CatState::MovingToBed => sleep = target.is_none(),
     }
 
     if find_entity {
-        //transform.scale = Vec2::splat(1.0).extend(0.);
         cat.state = CatState::MovingToEntity;
         let mut rng = rand::thread_rng();
         let human_entity = humans.iter().choose(&mut rng).unwrap();

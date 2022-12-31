@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::AnimationTimer;
+use crate::animation::{AnimationTimer, TextureResources};
 use crate::cat::*;
 use crate::customer::Customer;
 use crate::geom::*;
@@ -195,8 +195,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         }
         EntityType::Cat => {
             let sprite = SpriteSheetBundle {
-                texture_atlas: textures.unwrap().atlas.as_ref().unwrap().clone(),
-                //transform: Transform::from_scale(Vec3::splat(6.0)),
+                texture_atlas: textures.unwrap().atlas.clone(),
                 transform: Transform::from_translation(pos.extend(z)),
                 ..default()
             };
@@ -286,23 +285,20 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
     };
 }
 
-#[derive(Default, Resource)]
-pub struct TextureResources {
-    atlas: Option<Handle<TextureAtlas>>,
-}
-
 pub fn setup(
     mut commands: Commands,
     mut map: ResMut<Map>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    mut texture_resources: ResMut<TextureResources>,
 ) {
     let texture_handle = asset_server.load("cat.png");
     let texture_atlas =
         TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 4, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
-    texture_resources.atlas = Some(texture_atlas_handle);
+    let texture_resources = TextureResources {
+        atlas: texture_atlas_handle,
+        cycle_length: 4,
+    };
 
     for pos in &map.cat_beds {
         let rect = map_to_screen(pos, &MapSize { width: 2, height: 2 }, &map);
@@ -369,4 +365,6 @@ pub fn setup(
                 }),
         }
     );
+
+    commands.insert_resource(texture_resources);
 }
