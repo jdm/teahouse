@@ -30,10 +30,14 @@ impl Default for Interactable {
 }
 
 pub fn highlight_interactable(
-    player: Query<(&Transform, &Movable), With<Player>>,
-    mut interactable: Query<(Entity, &mut Interactable, &Transform, Option<&mut Sprite>, &HasSize)>,
+    player: Query<(&Transform, &Movable), (With<Player>, Changed<Transform>)>,
+    mut interactable: Query<(Entity, &mut Interactable, &Transform, Option<&mut Sprite>, &HasSize), Changed<Transform>>,
     mut status_events: EventWriter<StatusEvent>,
 ) {
+    if player.is_empty() {
+        return;
+    }
+
     let (player_transform, player_movable) = player.single();
 
     for (entity, mut interactable, transform, mut sprite, size) in interactable.iter_mut() {
@@ -60,7 +64,6 @@ pub fn highlight_interactable(
                 ));
             }
             interactable.colliding = true;
-            break;
         } else if collision.is_none() && interactable.previous.is_some() {
             let previous = interactable.previous.take();
             if let Some(ref mut sprite) = sprite {

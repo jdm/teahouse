@@ -66,7 +66,7 @@ impl PathfindTarget {
 pub fn pathfind_to_target(
     mut set: ParamSet<(
         Query<&PathfindTarget>,
-        Query<(Entity, &Transform, &HasSize)>,
+        Query<(&Transform, &HasSize)>,
         Query<(Entity, &mut PathfindTarget, &mut Transform, &mut Movable, &HasSize)>,
     )>,
     map: Res<Map>,
@@ -80,13 +80,16 @@ pub fn pathfind_to_target(
         target_entities.push(target.target);
     }
 
+    let q = set.p1();
     let mut target_data = HashMap::new();
-    for (entity, transform, sized) in &set.p1() {
-        if !target_entities.contains(&entity) || target_data.contains_key(&entity) {
+    for target_entity in &target_entities {
+        if target_data.contains_key(&target_entity) {
             continue;
         }
-        let target_point = transform_to_map_pos(&transform, &map, &sized.size);
-        target_data.insert(entity, target_point);
+        if let Ok((transform, sized)) = q.get(*target_entity) {
+            let target_point = transform_to_map_pos(&transform, &map, &sized.size);
+            target_data.insert(target_entity, target_point);
+        }
     }
 
     for (entity, mut target, mut transform, mut movable, sized) in &mut set.p2() {
