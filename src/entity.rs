@@ -94,7 +94,7 @@ pub struct Player {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum EntityType {
-    Customer(Vec<String>),
+    Customer(Color),
     Player,
     Prop,
     Chair,
@@ -123,7 +123,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
     };
     let color = match entity {
         EntityType::Player => Color::rgb(0.25, 0.25, 0.75),
-        EntityType::Customer(..) => Color::rgb(0.0, 0.25, 0.0),
+        EntityType::Customer(color) => color,
         EntityType::Prop => Color::rgb(0.25, 0.15, 0.0),
         EntityType::Chair => Color::rgb(0.15, 0.05, 0.0),
         EntityType::Door => Color::rgb(0.6, 0.2, 0.2),
@@ -162,12 +162,9 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
                     parent.spawn(Camera2dBundle::default());
                 });
         }
-        EntityType::Customer(conversation) => {
+        EntityType::Customer(..) => {
             commands.spawn((
-                Customer {
-                    conversation,
-                    ..default()
-                },
+                Customer::default(),
                 Affection::default(),
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),

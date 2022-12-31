@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use crate::cat::run_cat;
-use crate::customer::run_customer;
+use crate::customer::{run_customer, customer_spawner, spawn_customer_by_door, NewCustomerEvent};
 use crate::debug::{DebugSettings, debug_keys};
 use crate::dialog::{run_dialog, exit_dialog};
 use crate::entity::setup;
@@ -55,7 +55,10 @@ fn main() {
         )
         .add_system(run_cat)
         .add_system(update_status_line)
+        .add_system(customer_spawner)
+        .add_system(spawn_customer_by_door)
         .add_event::<StatusEvent>()
+        .add_event::<NewCustomerEvent>()
         .init_resource::<PathingGrid>()
         .init_resource::<DebugSettings>()
         .run();

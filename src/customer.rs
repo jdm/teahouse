@@ -1,12 +1,22 @@
 use bevy::prelude::*;
 use crate::entity::{Chair, Door, Reaction, EntityType, Paused, spawn_sprite};
-use crate::geom::transform_to_screenrect;
+use crate::geom::{MapSize, transform_to_screenrect, map_to_screen, transform_to_map_pos, HasSize};
+use crate::map::Map;
 use crate::movable::Movable;
 use crate::pathfinding::PathfindTarget;
 use crate::tea::TeaPot;
 use rand::seq::IteratorRandom;
+use rand::Rng;
 use std::default::Default;
 use std::time::Duration;
+
+pub fn conversation() -> Vec<String> {
+    return vec![
+        "You: Welcome to Sereni Tea!".to_owned(),
+        "Customer: Thank you.".to_owned(),
+        "You: I'll bring you some tea.".to_owned(),
+    ];
+}
 
 pub fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
     let hint = teapot
@@ -100,14 +110,67 @@ pub enum CustomerState {
 #[derive(Component)]
 pub struct Customer {
     pub state: CustomerState,
-    pub conversation: Vec<String>,
 }
 
 impl Default for Customer {
     fn default() -> Self {
         Self {
             state: CustomerState::LookingForChair,
-            conversation: vec![],
         }
+    }
+}
+
+pub struct SpawnerState {
+    customer_timer: Timer
+}
+
+impl Default for SpawnerState {
+    fn default() -> Self {
+        Self {
+            customer_timer: create_customer_timer()
+        }
+    }
+}
+
+const MIN_SPAWN_TIME: u64 = 30;
+const MAX_SPAWN_TIME: u64 = 60;
+
+fn create_customer_timer() -> Timer {
+    let mut rng = rand::thread_rng();
+    let secs = rng.gen_range(MIN_SPAWN_TIME..MAX_SPAWN_TIME);
+    Timer::new(Duration::from_secs(secs), TimerMode::Once)
+}
+
+pub struct NewCustomerEvent;
+
+pub fn spawn_customer_by_door(
+    doors: Query<(&Transform, &HasSize), With<Door>>,
+    mut events: EventReader<NewCustomerEvent>,
+    mut commands: Commands,
+    map: Res<Map>,
+) {
+    for _event in events.iter() {
+        let (transform, sized) = doors.iter().next().unwrap();
+        let mut door_pos = transform_to_map_pos(&transform, &map, &sized.size);
+        door_pos.x += 1;
+        // FIXME: assume customers are all 1x1 entities.
+        let screen_rect = map_to_screen(&door_pos, &MapSize { width: 1, height: 1 }, &map);
+
+        let mut rng = rand::thread_rng();
+        let color = Color::rgb(rng.gen(), rng.gen(), rng.gen());
+
+        spawn_sprite(EntityType::Customer(color), screen_rect, &mut commands);
+    }
+}
+
+pub fn customer_spawner(
+    mut state: Local<SpawnerState>,
+    mut customer_events: EventWriter<NewCustomerEvent>,
+    time: Res<Time>,
+) {
+    state.customer_timer.tick(time.delta());
+    if state.customer_timer.finished() {
+        state.customer_timer = create_customer_timer();
+        customer_events.send(NewCustomerEvent);
     }
 }

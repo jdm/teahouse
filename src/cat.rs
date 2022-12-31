@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use crate::customer::Customer;
 use crate::entity::{Affection, RelationshipStatus, CatBed, Player, Reaction};
 use crate::pathfinding::PathfindTarget;
+use rand::Rng;
 use rand::seq::IteratorRandom;
 use std::time::Duration;
 
@@ -17,10 +18,19 @@ pub struct Cat {
     state: CatState,
 }
 
+const MIN_SLEEP_TIME: u64 = 30;
+const MAX_SLEEP_TIME: u64 = 60;
+
+fn create_sleep_timer() -> Timer {
+    let mut rng = rand::thread_rng();
+    let secs = rng.gen_range(MIN_SLEEP_TIME..MAX_SLEEP_TIME);
+    Timer::new(Duration::from_secs(secs), TimerMode::Once)
+}
+
 impl Default for Cat {
     fn default() -> Self {
         Self {
-            state: CatState::Sleeping(Timer::new(Duration::from_secs(2), TimerMode::Once))
+            state: CatState::Sleeping(create_sleep_timer())
         }
     }
 }
@@ -52,7 +62,6 @@ pub fn run_cat(
     let mut find_entity = false;
     let mut find_bed = false;
     let mut sleep = false;
-    //println!("{:?} {:?}", cat.state, target);
     match cat.state {
         CatState::Sleeping(ref mut timer) => {
             timer.tick(time.delta());
@@ -65,7 +74,6 @@ pub fn run_cat(
 
     if find_entity {
         transform.scale = Vec2::splat(1.0).extend(0.);
-        println!("setting target entity");
         cat.state = CatState::MovingToEntity;
         let mut rng = rand::thread_rng();
         let human_entity = humans.iter().choose(&mut rng).unwrap();
@@ -73,14 +81,12 @@ pub fn run_cat(
     }
 
     if find_bed {
-        println!("returning to bed");
         cat.state = CatState::MovingToBed;
         let (cat_bed_entity, _) = cat_bed.single();
         commands.entity(entity).insert(PathfindTarget::new(cat_bed_entity, true));
     }
 
     if sleep {
-        println!("going to sleep for 5s");
-        cat.state = CatState::Sleeping(Timer::new(Duration::from_secs(5), TimerMode::Once));
+        cat.state = CatState::Sleeping(create_sleep_timer());
     }
 }

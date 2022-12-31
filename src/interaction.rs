@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
 use crate::cat::{Cat, petting_reaction};
-use crate::customer::{Customer, tea_delivery};
+use crate::customer::{Customer, tea_delivery, conversation};
 use crate::dialog::show_message_box;
 use crate::entity::*;
 use crate::geom::HasSize;
@@ -138,7 +138,7 @@ pub fn keyboard_input(
             }
         }
 
-        for (customer_entity, customer, mut affection, interactable) in &mut customers {
+        for (customer_entity, _customer, mut affection, interactable) in &mut customers {
             if interactable.colliding {
                 if !teapot.is_empty() {
                     let teapot = teapot.single();
@@ -153,7 +153,7 @@ pub fn keyboard_input(
                     show_message_box(customer_entity, &mut commands, conversation, asset_server);
                 } else {
                     game_state.set(GameState::Dialog).unwrap();
-                    show_message_box(customer_entity, &mut commands, customer.conversation.clone(), asset_server);
+                    show_message_box(customer_entity, &mut commands, conversation(), asset_server);
                 }
                 return;
             }

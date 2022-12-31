@@ -9,7 +9,7 @@ pub static MAP: &[&str] = &[
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx",
     "xb....................................xsssxxxxx",
     "x.k.............P............................tx",
-    "x.....C....c......................xx.........tx",
+    "x..........c......................xx.........tx",
     "x........cxxx...........c...........xxxKx....tx",
     "x.........xxxc.........xx..............xxxx...x",
     "D..........c..........xxxxc.......c...........x",
@@ -54,10 +54,6 @@ pub fn read_map(data: &[&str]) -> Map {
         while let Some((x, ch)) = chars.next() {
             if simple_entities.contains_key(&ch) {
                 map.entities.push((simple_entities[&ch].clone(), MapPos { x, y }));
-            } else if ch == 'C' {
-                map.entities.push((EntityType::Customer(vec![
-                    "first".to_string(), "second".to_string(), "third".to_string(),
-                ]), MapPos { x, y }));
             } else if ch == 'B' {
                 map.cupboards.push(MapPos { x, y });
             } else if ch == 't' {
@@ -114,16 +110,14 @@ pub fn read_map(data: &[&str]) -> Map {
 
 #[test]
 fn map_read_entities() {
-    static TEST: &[&str] = &["..P..C.."];
+    static TEST: &[&str] = &["..P..c.."];
     let map = read_map(TEST);
     let expected = Map {
         width: 8,
         height: 1,
         entities: vec![
             (EntityType::Player, MapPos { x: 2, y: 0 }),
-            (EntityType::Customer(vec![
-                "first".to_string(), "second".to_string(), "third".to_string()
-            ]), MapPos { x: 5, y: 0 }),
+            (EntityType::Chair, MapPos { x: 5, y: 0 }),
         ],
         ..default()
     };
