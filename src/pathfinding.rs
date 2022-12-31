@@ -92,6 +92,12 @@ pub fn pathfind_to_target(
     for (entity, mut target, mut transform, mut movable, sized) in &mut set.p2() {
         let current_point = transform_to_map_pos(&transform, &map, &sized.size);
         if target.next_point.map_or(true, |point| current_point == point) {
+            // We're within the right tile, but still need to move to the right subtile coordinates.
+            if !is_tile_aligned(&transform, &map, &sized) {
+                move_to_screen_point(&transform, &mut movable, target.next_point.unwrap(), &sized, &map);
+                continue;
+            }
+
             reset_movable_pos(&mut transform, &mut movable, &sized, &map, current_point);
 
             for (debug_entity, debug_tile, _) in &debug_tile {

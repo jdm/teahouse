@@ -3,8 +3,49 @@ use crate::entity::Paused;
 use crate::geom::*;
 use crate::map::Map;
 
+// Set up an entity to move from its current screen-space position to the screen-space point
+// corresponding to the provided map point. This is used for subtile movement to ensure smooth
+// transitions between tiles.
+pub fn move_to_screen_point(transform: &Transform, movable: &mut Movable, next: MapPos, sized: &HasSize, map: &Map) {
+    let next = map_to_screen(&next, &sized.size, &map);
+
+    let delta = next.x - transform.translation.x;
+    let mut subtile_max = Vec2::new(delta, 0.);
+    let speed = movable.entity_speed;
+    if next.x < transform.translation.x {
+        movable.speed.x = -speed;
+        movable.direction = MoveDirection::Left;
+    } else if next.x > transform.translation.x {
+        movable.speed.x = speed;
+        movable.direction = MoveDirection::Right;
+    } else {
+        movable.speed.x = 0.;
+    }
+
+    // Screenspace is subtly different than map space when determining which way
+    // to move and how much to clamp by. Up is >> 0, down is << 0.
+    let delta = (next.y - transform.translation.y).abs();
+    let speed = movable.entity_speed;
+    if next.y > transform.translation.y {
+        movable.speed.y = speed;
+        movable.direction = MoveDirection::Up;
+        subtile_max.y = delta;
+    } else if next.y < transform.translation.y {
+        movable.speed.y = -speed;
+        movable.direction = MoveDirection::Down;
+        subtile_max.y = -delta;
+    } else {
+        movable.speed.y = 0.;
+    }
+
+    // We know how far this entity is from the tile boundary of the tile that it is
+    // currently in, so we should not attempt to move farther than that distance.
+    movable.subtile_max = Some(subtile_max);
+}
+
 pub fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos) {
     let speed = movable.entity_speed;
+    movable.subtile_max = None;
     if next.x < current.x {
         movable.speed.x = -speed;
         movable.direction = MoveDirection::Left;
@@ -26,9 +67,20 @@ pub fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos) {
     }
 }
 
+pub fn is_tile_aligned(
+    transform: &Transform,
+    map: &Map,
+    sized: &HasSize,
+) -> bool {
+    let current_point = transform_to_map_pos(&transform, &map, &sized.size);
+    let ideal_point = map_to_screen(&current_point, &sized.size, &map);
+    transform.translation == Vec3::new(ideal_point.x, ideal_point.y, transform.translation.z)
+}
+
 pub fn reset_movable_pos(transform: &mut Transform, movable: &mut Movable, sized: &HasSize, map: &Map, pos: MapPos) {
     let ideal_point = map_to_screen(&pos, &sized.size, &map);
     transform.translation = Vec3::new(ideal_point.x, ideal_point.y, transform.translation.z);
+    movable.subtile_max = None;
     movable.speed = Vec2::ZERO;
 }
 
@@ -45,6 +97,9 @@ pub struct Movable {
     pub size: Vec2,
     pub entity_speed: f32,
     pub direction: MoveDirection,
+    // When present, used to clamp any movement in one frame so it does not
+    // exceed the vector given.
+    pub subtile_max: Option<Vec2>,
 }
 
 impl MoveDirection {
@@ -162,7 +217,21 @@ pub fn move_movables(
 
     let mut q = set.p2();
     for (movable, mut transform) in &mut q {
-        let delta = Vec3::new(movable.speed.x, movable.speed.y, 0.0);
-        transform.translation += delta * delta_seconds;
+        let mut delta = Vec3::new(movable.speed.x, movable.speed.y, 0.0) * delta_seconds;
+        if let Some(subtile_max) = movable.subtile_max {
+            // When there is an explicit subtile clamp, we need to modify our delta to
+            // clamp to whichever value is closer to zero.
+            if delta.x > 0. {
+                delta.x = delta.x.min(subtile_max.x);
+            } else {
+                delta.x = delta.x.max(subtile_max.x);
+            }
+            if delta.y > 0. {
+                delta.y = delta.y.min(subtile_max.y);
+            } else {
+                delta.y = delta.y.max(subtile_max.y);
+            }
+        }
+        transform.translation += delta;
     }
 }

@@ -149,7 +149,13 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         transform: Transform::from_translation(pos.extend(z)),
         ..default()
     };
-    let movable = Movable { speed: Vec2::ZERO, size: size, entity_speed: speed, direction: MoveDirection::Down };
+    let movable = Movable {
+        speed: Vec2::ZERO,
+        size: size,
+        entity_speed: speed,
+        direction: MoveDirection::Down,
+        subtile_max: None,
+    };
     let sized = HasSize {
         size: MapSize {
             width: (rect.w / TILE_SIZE) as usize,
