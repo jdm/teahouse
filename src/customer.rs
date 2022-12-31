@@ -94,7 +94,7 @@ pub fn run_customer(
             commands.entity(entity).insert(PathfindTarget::new(door_entity, false));
 
             let rect = transform_to_screenrect(&transform, &movable);
-            spawn_sprite(EntityType::TeaPot, rect, &mut commands);
+            spawn_sprite(EntityType::TeaPot, rect, &mut commands, None);
         }
     }
 }
@@ -159,7 +159,7 @@ pub fn spawn_customer_by_door(
         let mut rng = rand::thread_rng();
         let color = Color::rgb(rng.gen(), rng.gen(), rng.gen());
 
-        spawn_sprite(EntityType::Customer(color), screen_rect, &mut commands);
+        spawn_sprite(EntityType::Customer(color), screen_rect, &mut commands, None);
     }
 }
 

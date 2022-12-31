@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::AnimationTimer;
 use crate::cat::*;
 use crate::customer::Customer;
 use crate::geom::*;
@@ -112,7 +113,7 @@ pub const CAT_SPEED: f32 = 25.0;
 pub const CUSTOMER_SPEED: f32 = 40.0;
 pub const SPEED: f32 = 150.0;
 
-pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands) {
+pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands, textures: Option<&TextureResources>) {
     let pos = Vec2::new(rect.x, rect.y);
     let size = Vec2::new(rect.w, rect.h);
     let speed = match entity {
@@ -148,7 +149,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         transform: Transform::from_translation(pos.extend(z)),
         ..default()
     };
-    let movable = Movable { speed: Vec2::ZERO, size: size, entity_speed: speed };
+    let movable = Movable { speed: Vec2::ZERO, size: size, entity_speed: speed, direction: MoveDirection::Down };
     let sized = HasSize {
         size: MapSize {
             width: (rect.w / TILE_SIZE) as usize,
@@ -159,7 +160,9 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         EntityType::Player => {
             commands.spawn((Player::default(), movable, sized, sprite))
                 .with_children(|parent| {
-                    parent.spawn(Camera2dBundle::default());
+                    let mut bundle = Camera2dBundle::default();
+                    bundle.transform.scale = Vec3::new(0.5, 0.5, 1.0);
+                    parent.spawn(bundle);
                 });
         }
         EntityType::Customer(..) => {
@@ -191,8 +194,16 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
             ));
         }
         EntityType::Cat => {
+            let sprite = SpriteSheetBundle {
+                texture_atlas: textures.unwrap().atlas.as_ref().unwrap().clone(),
+                //transform: Transform::from_scale(Vec3::splat(6.0)),
+                transform: Transform::from_translation(pos.extend(z)),
+                ..default()
+            };
+
             commands.spawn((
                 Cat::default(),
+                AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
                 Affection::default(),
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),
@@ -275,17 +286,31 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
     };
 }
 
+#[derive(Default, Resource)]
+pub struct TextureResources {
+    atlas: Option<Handle<TextureAtlas>>,
+}
+
 pub fn setup(
     mut commands: Commands,
     mut map: ResMut<Map>,
     asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut texture_resources: ResMut<TextureResources>,
 ) {
+    let texture_handle = asset_server.load("cat.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 4, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    texture_resources.atlas = Some(texture_atlas_handle);
+
     for pos in &map.cat_beds {
         let rect = map_to_screen(pos, &MapSize { width: 2, height: 2 }, &map);
         spawn_sprite(
             EntityType::CatBed,
             rect,
             &mut commands,
+            None,
         )
     }
 
@@ -296,6 +321,7 @@ pub fn setup(
             EntityType::Cupboard(rng.gen_range(4..10)),
             rect,
             &mut commands,
+            None,
         )
     }
 
@@ -305,6 +331,7 @@ pub fn setup(
             EntityType::Prop,
             rect,
             &mut commands,
+            None,
         )
     }
 
@@ -315,6 +342,7 @@ pub fn setup(
             entity_type,
             rect,
             &mut commands,
+            Some(&texture_resources),
         );
     }
 

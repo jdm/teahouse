@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use crate::map::*;
 use crate::movable::Movable;
 
-pub const TILE_SIZE: f32 = 25.0;
+pub const TILE_SIZE: f32 = 16.0;
 
 #[derive(Component)]
 pub struct HasSize {

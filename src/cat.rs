@@ -22,8 +22,9 @@ const MIN_SLEEP_TIME: u64 = 30;
 const MAX_SLEEP_TIME: u64 = 60;
 
 fn create_sleep_timer() -> Timer {
-    let mut rng = rand::thread_rng();
-    let secs = rng.gen_range(MIN_SLEEP_TIME..MAX_SLEEP_TIME);
+    /*let mut rng = rand::thread_rng();
+    let secs = rng.gen_range(MIN_SLEEP_TIME..MAX_SLEEP_TIME);*/
+    let secs = 0;
     Timer::new(Duration::from_secs(secs), TimerMode::Once)
 }
 
@@ -66,14 +67,14 @@ pub fn run_cat(
         CatState::Sleeping(ref mut timer) => {
             timer.tick(time.delta());
             find_entity = timer.finished();
-            transform.scale = Vec2::splat(time.elapsed_seconds().sin() + 0.5).extend(0.);
+            //transform.scale = Vec2::splat(time.elapsed_seconds().sin() + 0.5).extend(0.);
         }
         CatState::MovingToEntity => find_bed = target.is_none(),
         CatState::MovingToBed => sleep = target.is_none(),
     }
 
     if find_entity {
-        transform.scale = Vec2::splat(1.0).extend(0.);
+        //transform.scale = Vec2::splat(1.0).extend(0.);
         cat.state = CatState::MovingToEntity;
         let mut rng = rand::thread_rng();
         let human_entity = humans.iter().choose(&mut rng).unwrap();

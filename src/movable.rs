@@ -7,16 +7,20 @@ pub fn move_to_point(movable: &mut Movable, current: MapPos, next: MapPos) {
     let speed = movable.entity_speed;
     if next.x < current.x {
         movable.speed.x = -speed;
+        movable.direction = MoveDirection::Left;
     } else if next.x > current.x {
         movable.speed.x = speed;
+        movable.direction = MoveDirection::Right;
     } else {
         movable.speed.x = 0.;
     }
 
     if next.y < current.y {
         movable.speed.y = speed;
+        movable.direction = MoveDirection::Up;
     } else if next.y > current.y {
         movable.speed.y = -speed;
+        movable.direction = MoveDirection::Down;
     } else {
         movable.speed.y = 0.
     }
@@ -28,11 +32,30 @@ pub fn reset_movable_pos(transform: &mut Transform, movable: &mut Movable, sized
     movable.speed = Vec2::ZERO;
 }
 
+pub enum MoveDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
 #[derive(Component)]
 pub struct Movable {
     pub speed: Vec2,
     pub size: Vec2,
     pub entity_speed: f32,
+    pub direction: MoveDirection,
+}
+
+impl MoveDirection {
+    pub fn anim_index(&self) -> usize {
+        match self {
+            MoveDirection::Down => 0,
+            MoveDirection::Right => 1,
+            MoveDirection::Up => 2,
+            MoveDirection::Left => 3,
+        }
+    }
 }
 
 struct MovingEntity {
