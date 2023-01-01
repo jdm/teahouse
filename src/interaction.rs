@@ -1,16 +1,19 @@
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
-use crate::entity::{Player, SPEED};
+use crate::entity::{SPEED, Item, Facing, FacingDirection};
 use crate::geom::HasSize;
 use crate::movable::Movable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
+use crate::player::{Holding, Player};
 
 pub struct InteractionPlugin;
 
 impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_system(pick_up_item)
+            .add_system(drop_item)
             .add_event::<PlayerInteracted>()
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
@@ -91,29 +94,87 @@ pub struct PlayerInteracted {
     pub interacted_entity: Entity,
 }
 
+fn drop_item(
+    held: Query<&Holding, With<Player>>,
+    keys: Res<Input<KeyCode>>,
+    mut held_transform: Query<(&mut Transform, &GlobalTransform)>,
+    mut commands: Commands,
+    player: Query<Entity, With<Player>>,
+) {
+    if held.is_empty() {
+        return;
+    }
+
+    if keys.just_released(KeyCode::X) {
+        let player = player.single();
+        let held = held.single();
+        commands.entity(held.entity).remove_parent();
+        commands.entity(player).remove::<Holding>();
+        let (mut transform, global_transform) = held_transform.get_mut(held.entity).unwrap();
+        transform.translation = global_transform.translation();
+    }
+}
+
+fn pick_up_item(
+    mut player_interacted_events: EventReader<PlayerInteracted>,
+    player_holding: Query<&Holding, With<Player>>,
+    mut items: Query<(&Item, &mut Transform)>,
+    mut commands: Commands,
+) {
+    // If the player is already holding an item, they cannot pick up another one.
+    if !player_holding.is_empty() {
+        return;
+    }
+
+    for event in player_interacted_events.iter() {
+        let (item, mut transform) = match items.get_mut(event.interacted_entity) {
+            Ok(result) => result,
+            Err(_) => continue,
+        };
+
+        commands.entity(event.player_entity).add_child(event.interacted_entity);
+        transform.translation = Vec2::ZERO.extend(transform.translation.z);
+        commands.entity(event.player_entity).insert(Holding {
+            entity: event.interacted_entity,
+            _entity_type: item.0.clone(),
+        });
+    }
+}
+
 fn keyboard_input(
     keys: Res<Input<KeyCode>>,
-    mut q: Query<(Entity, &mut Movable), With<Player>>,
+    mut q: Query<(Entity, &mut Movable, &mut Facing), With<Player>>,
     mut interacted_events: EventWriter<PlayerInteracted>,
     interactables: Query<(Entity, &Interactable)>,
 ) {
-    let (player_entity, mut movable) = q.single_mut();
+    let (player_entity, mut movable, mut facing) = q.single_mut();
 
-    if keys.just_pressed(KeyCode::Up) {
+    if keys.pressed(KeyCode::Up) {
         movable.speed.y = SPEED;
-    } else if keys.just_pressed(KeyCode::Down) {
+        facing.0 = FacingDirection::Up;
+    } else if keys.pressed(KeyCode::Down) {
         movable.speed.y = -SPEED;
+        facing.0 = FacingDirection::Down;
     }
-    if keys.any_just_released([KeyCode::Up, KeyCode::Down]) {
+    if keys.just_released(KeyCode::Up) && movable.speed.y > 0. {
+        movable.speed.y = 0.0;
+    }
+    if keys.just_released(KeyCode::Down) && movable.speed.y < 0. {
         movable.speed.y = 0.0;
     }
 
-    if keys.just_pressed(KeyCode::Left) {
+    if keys.pressed(KeyCode::Left) {
         movable.speed.x = -SPEED;
-    } else if keys.just_pressed(KeyCode::Right) {
-        movable.speed.x = SPEED;
+        facing.0 = FacingDirection::Left;
     }
-    if keys.any_just_released([KeyCode::Left, KeyCode::Right]) {
+    if keys.pressed(KeyCode::Right) {
+        movable.speed.x = SPEED;
+        facing.0 = FacingDirection::Right;
+    }
+    if keys.just_released(KeyCode::Left) && movable.speed.x < 0. {
+        movable.speed.x = 0.0;
+    }
+    if keys.just_released(KeyCode::Right) && movable.speed.x > 0. {
         movable.speed.x = 0.0;
     }
 

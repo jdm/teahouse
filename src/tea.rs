@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy::utils::Instant;
-use crate::entity::{Item, Player};
 use crate::interaction::PlayerInteracted;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
+use crate::player::Player;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -14,8 +14,7 @@ impl Plugin for TeaPlugin {
         app
             .add_system(interact_with_stash)
             .add_system(interact_with_cupboards)
-            .add_system(interact_with_kettles)
-            .add_system(interact_with_teapot);
+            .add_system(interact_with_kettles);
     }
 }
 
@@ -58,27 +57,6 @@ pub enum Ingredient {
     Ceylon,
     Cream,
     BrownSugar,
-}
-
-fn interact_with_teapot(
-    mut player_interacted_events: EventReader<PlayerInteracted>,
-    teapots: Query<&TeaPot, With<Item>>,
-    mut commands: Commands,
-    mut status_events: EventWriter<StatusEvent>,
-) {
-    for event in player_interacted_events.iter() {
-        let _teapot = match teapots.get(event.interacted_entity) {
-            Ok(result) => result,
-            Err(_) => continue,
-        };
-        commands.entity(event.interacted_entity).despawn();
-        commands.entity(event.player_entity).insert(TeaPot::default());
-        status_events.send(StatusEvent::timed_message(
-            event.player_entity,
-            "You collect the used teapot.".to_owned(),
-            DEFAULT_EXPIRY,
-        ));
-    }
 }
 
 fn interact_with_stash(

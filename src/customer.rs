@@ -1,12 +1,13 @@
 use bevy::prelude::*;
 use crate::GameState;
 use crate::dialog::show_message_box;
-use crate::entity::{Chair, Door, Reaction, EntityType, Paused, Affection, Player, spawn_sprite};
+use crate::entity::{Chair, Door, Reaction, EntityType, Paused, Affection, spawn_sprite};
 use crate::geom::{MapSize, transform_to_screenrect, map_to_screen, transform_to_map_pos, HasSize};
 use crate::interaction::PlayerInteracted;
 use crate::map::Map;
 use crate::movable::Movable;
 use crate::pathfinding::PathfindTarget;
+use crate::player::Player;
 use crate::tea::TeaPot;
 use rand::seq::IteratorRandom;
 use rand::Rng;
@@ -110,7 +111,7 @@ fn run_customer(
             commands.entity(entity).insert(PathfindTarget::new(door_entity, false));
 
             let rect = transform_to_screenrect(&transform, &movable);
-            spawn_sprite(EntityType::TeaPot, rect, &mut commands, None);
+            spawn_sprite(EntityType::TeaPot, rect, &mut commands);
         }
     }
 }
@@ -175,7 +176,7 @@ fn spawn_customer_by_door(
         let mut rng = rand::thread_rng();
         let color = Color::rgb(rng.gen(), rng.gen(), rng.gen());
 
-        spawn_sprite(EntityType::Customer(color), screen_rect, &mut commands, None);
+        spawn_sprite(EntityType::Customer(color), screen_rect, &mut commands);
     }
 }
 

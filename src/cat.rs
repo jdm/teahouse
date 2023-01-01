@@ -1,10 +1,11 @@
 use bevy::prelude::*;
 use crate::animation::AnimationData;
 use crate::customer::Customer;
-use crate::entity::{Affection, RelationshipStatus, Player, Reaction, Facing, FacingDirection};
+use crate::entity::{Affection, RelationshipStatus, Reaction, Facing, FacingDirection};
 use crate::interaction::PlayerInteracted;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::pathfinding::PathfindTarget;
+use crate::player::Player;
 use rand::Rng;
 use rand::seq::IteratorRandom;
 use std::time::Duration;

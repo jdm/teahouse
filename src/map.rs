@@ -17,7 +17,7 @@ impl Plugin for MapPlugin {
 static MAP: &[&str] = &[
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxB.xxxxxxxxxxx",
     "xb....................................xxxxxxxxx",
-    "x.k.............P............................tx",
+    "x.k.............P...T........................tx",
     "x..........c......................xx.........tx",
     "x........cxxx...........c...........xxxKx....tx",
     "x.........xxxc.........xx..............xxxx...x",
@@ -54,6 +54,7 @@ fn read_map(data: &[&str]) -> Map {
         ('K', EntityType::Kettle),
         ('k', EntityType::Cat),
         ('c', EntityType::Chair),
+        ('T', EntityType::TeaPot),
     ]);
 
     let mut rng = rand::thread_rng();

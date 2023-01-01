@@ -10,6 +10,7 @@ use crate::map::MapPlugin;
 use crate::message_line::MessageLinePlugin;
 use crate::movable::MovablePlugin;
 use crate::pathfinding::PathfindingPlugin;
+use crate::player::PlayerPlugin;
 use crate::tea::TeaPlugin;
 
 mod animation;
@@ -24,6 +25,7 @@ mod map;
 mod message_line;
 mod movable;
 mod pathfinding;
+mod player;
 mod tea;
 
 fn main() {
@@ -47,6 +49,7 @@ fn main() {
         .add_plugin(DialogPlugin)
         .add_plugin(MovablePlugin)
         .add_plugin(MapPlugin)
+        .add_plugin(PlayerPlugin)
         .add_state(GameState::InGame)
         .add_startup_system(setup)
         .add_system(bevy::window::close_on_esc);

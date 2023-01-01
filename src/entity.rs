@@ -7,16 +7,16 @@ use crate::interaction::Interactable;
 use crate::map::Map;
 use crate::movable::Movable;
 use crate::message_line::{StatusMessage, StatusMessageBundle};
+use crate::player::Player;
 use crate::tea::{Ingredient, TeaStash, TeaPot, Kettle, Cupboard};
 use rand::Rng;
-use std::collections::HashMap;
 use std::default::Default;
 
 #[derive(Component)]
 pub struct Paused;
 
 #[derive(Component)]
-pub struct Item;
+pub struct Item(pub EntityType);
 
 pub enum FacingDirection {
     Up,
@@ -87,11 +87,6 @@ pub struct Door;
 #[derive(Component)]
 pub struct Chair;
 
-#[derive(Component, Default)]
-pub struct Player {
-    pub carrying: HashMap<Ingredient, u32>,
-}
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum EntityType {
     Customer(Color),
@@ -112,7 +107,20 @@ pub const CAT_SPEED: f32 = 25.0;
 pub const CUSTOMER_SPEED: f32 = 40.0;
 pub const SPEED: f32 = 150.0;
 
-pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Commands, textures: Option<&TextureResources>) {
+pub fn spawn_sprite(
+    entity: EntityType,
+    rect: ScreenRect,
+    commands: &mut Commands,
+) {
+    spawn_sprite_inner(entity, rect, commands, None)
+}
+
+fn spawn_sprite_inner(
+    entity: EntityType,
+    rect: ScreenRect,
+    commands: &mut Commands,
+    textures: Option<&TextureResources>,
+) {
     let pos = Vec2::new(rect.x, rect.y);
     let size = Vec2::new(rect.w, rect.h);
     let speed = match entity {
@@ -162,7 +170,13 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
     };
     match entity {
         EntityType::Player => {
-            commands.spawn((Player::default(), movable, sized, sprite))
+            commands.spawn((
+                Player::default(),
+                Facing(FacingDirection::Down),
+                movable,
+                sized,
+                sprite,
+            ))
                 .with_children(|parent| {
                     let mut bundle = Camera2dBundle::default();
                     bundle.transform.scale = Vec3::new(0.75, 0.75, 1.0);
@@ -186,7 +200,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
         EntityType::TeaPot => {
             commands.spawn((
                 TeaPot::default(),
-                Item,
+                Item(EntityType::TeaPot),
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),
                     message: "Press X to collect".to_string(),
@@ -289,7 +303,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
                 sprite,
             ));
         }
-    };
+    }
 }
 
 pub fn setup(
@@ -319,7 +333,6 @@ pub fn setup(
             EntityType::CatBed,
             rect,
             &mut commands,
-            None,
         )
     }
 
@@ -330,7 +343,6 @@ pub fn setup(
             EntityType::Cupboard(rng.gen_range(4..10)),
             rect,
             &mut commands,
-            None,
         )
     }
 
@@ -340,14 +352,13 @@ pub fn setup(
             EntityType::Prop,
             rect,
             &mut commands,
-            None,
         )
     }
 
     for (entity_type, pos) in std::mem::take(&mut map.entities) {
         let size = MapSize { width: 1, height: 1 };
         let rect = map_to_screen(&pos, &size, &map);
-        spawn_sprite(
+        spawn_sprite_inner(
             entity_type,
             rect,
             &mut commands,
