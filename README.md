@@ -8,5 +8,6 @@ TODO:
 * player picking up, carrying, putting down entity
 * player inventory and active item
 * move animation frame data into animation state values
+* generalize facing direction animation state updates
 * split spawn_sprite into events to spawn each kind of entity
 * pathfinding support for multi-tile entities
