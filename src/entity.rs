@@ -210,6 +210,7 @@ pub fn spawn_sprite(entity: EntityType, rect: ScreenRect, commands: &mut Command
                 AnimationData { current_animation: CatAnimationState::Sit.into() },
                 Affection::default(),
                 Facing(FacingDirection::Down),
+                crate::cat::State::default(),
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),
                     message: "Press X to pet the cat".to_string(),

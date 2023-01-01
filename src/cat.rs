@@ -15,7 +15,9 @@ impl Plugin for CatPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_system(interact_with_cat)
-            .add_system(run_cat)
+            .add_system(run_sleep)
+            .add_system(run_follow)
+            .add_system(run_bed)
             .add_system(update_animation_state);
     }
 }
@@ -37,17 +39,79 @@ impl From<CatAnimationState> for usize {
 #[derive(Component)]
 pub struct CatBed;
 
-#[derive(Debug)]
-pub enum CatState {
-    Sleeping(Timer),
-    MovingToEntity,
-    MovingToBed,
-}
+#[derive(Component)]
+pub struct Sleeping(Timer);
 
 #[derive(Component)]
-pub struct Cat {
-    state: CatState,
+struct MovingToEntity;
+
+#[derive(Component)]
+struct MovingToBed;
+
+fn run_sleep(
+    mut cat: Query<(Entity, &mut State<Sleeping>, &mut AnimationData), With<Cat>>,
+    humans: Query<Entity, Or<(With<Player>, With<Customer>)>>,
+    time: Res<Time>,
+    mut commands: Commands,
+) {
+    if cat.is_empty() {
+        return;
+    }
+    let (cat_entity, mut state, mut animation) = cat.single_mut();
+    animation.set_current(CatAnimationState::Sit);
+    state.0.0.tick(time.delta());
+    if state.0.0.finished() {
+        commands.entity(cat_entity).remove::<State<Sleeping>>();
+
+        let mut rng = rand::thread_rng();
+        let human_entity = humans.iter().choose(&mut rng).unwrap();
+        commands.entity(cat_entity).insert(PathfindTarget::new(human_entity, false));
+        commands.entity(cat_entity).insert(State(MovingToEntity));
+    }
 }
+
+fn run_follow(
+    cat: Query<(Entity, Option<&PathfindTarget>), (With<Cat>, With<State<MovingToEntity>>)>,
+    cat_bed: Query<Entity, With<CatBed>>,
+    mut commands: Commands,
+) {
+    if cat.is_empty() {
+        return;
+    }
+    let (cat_entity, target) = cat.single();
+    if target.is_none() {
+        commands.entity(cat_entity).remove::<State<MovingToEntity>>();
+        let cat_bed_entity = cat_bed.single();
+        commands.entity(cat_entity).insert(PathfindTarget::new(cat_bed_entity, true));
+        commands.entity(cat_entity).insert(State(MovingToBed));
+    }
+}
+
+fn run_bed(
+    mut cat: Query<(Entity, Option<&PathfindTarget>), (With<Cat>, With<State<MovingToBed>>)>,
+    mut commands: Commands,
+) {
+    if cat.is_empty() {
+        return;
+    }
+    let (cat_entity, target) = cat.single_mut();
+    if target.is_none() {
+        commands.entity(cat_entity).remove::<State<MovingToEntity>>();
+        commands.entity(cat_entity).insert(State(Sleeping(create_sleep_timer())));
+    }
+}
+
+#[derive(Component, Deref, DerefMut)]
+pub struct State<T>(pub T);
+
+impl Default for State<Sleeping> {
+    fn default() -> Self {
+        Self(Sleeping(create_sleep_timer()))
+    }
+}
+
+#[derive(Component, Default)]
+pub struct Cat;
 
 const MIN_SLEEP_TIME: u64 = 3;
 const MAX_SLEEP_TIME: u64 = 15;
@@ -58,19 +122,11 @@ fn create_sleep_timer() -> Timer {
     Timer::new(Duration::from_secs(secs), TimerMode::Once)
 }
 
-impl Default for Cat {
-    fn default() -> Self {
-        Self {
-            state: CatState::Sleeping(create_sleep_timer())
-        }
-    }
-}
-
-pub fn petting_reaction(cat: &Cat, affection: &Affection) -> (Reaction, String) {
-    let reaction = match cat.state {
-        CatState::Sleeping(..) => Reaction::MajorNegative,
-        CatState::MovingToEntity |
-        CatState::MovingToBed => Reaction::Positive,
+fn petting_reaction(is_sleeping: bool, affection: &Affection) -> (Reaction, String) {
+    let reaction = if is_sleeping {
+        Reaction::MajorNegative
+    } else {
+        Reaction::Positive
     };
     let message = match affection.status() {
         RelationshipStatus::Angry => "The cat hisses.",
@@ -99,57 +155,17 @@ fn update_animation_state(
     data.set_current(state);
 }
 
-fn run_cat(
-    mut cat: Query<(Entity, &mut Cat, Option<&PathfindTarget>, &mut AnimationData)>,
-    cat_bed: Query<(Entity, &CatBed)>,
-    humans: Query<Entity, Or<(With<Player>, With<Customer>)>>,
-    time: Res<Time>,
-    mut commands: Commands,
-) {
-    let (entity, mut cat, target, mut animation) = cat.single_mut();
-    let mut find_entity = false;
-    let mut find_bed = false;
-    let mut sleep = false;
-    match cat.state {
-        CatState::Sleeping(ref mut timer) => {
-            timer.tick(time.delta());
-            find_entity = timer.finished();
-            animation.set_current(CatAnimationState::Sit);
-        }
-        CatState::MovingToEntity => find_bed = target.is_none(),
-        CatState::MovingToBed => sleep = target.is_none(),
-    }
-
-    if find_entity {
-        cat.state = CatState::MovingToEntity;
-        let mut rng = rand::thread_rng();
-        let human_entity = humans.iter().choose(&mut rng).unwrap();
-        commands.entity(entity).insert(PathfindTarget::new(human_entity, false));
-    }
-
-    if find_bed {
-        cat.state = CatState::MovingToBed;
-        let (cat_bed_entity, _) = cat_bed.single();
-        commands.entity(entity).insert(PathfindTarget::new(cat_bed_entity, true));
-    }
-
-    if sleep {
-        cat.state = CatState::Sleeping(create_sleep_timer());
-        animation.set_current(CatAnimationState::Sit);
-    }
-}
-
 fn interact_with_cat(
     mut player_interacted_events: EventReader<PlayerInteracted>,
-    mut cat: Query<(&Cat, &mut Affection)>,
+    mut cat: Query<(&mut Affection, Option<&State<Sleeping>>), With<Cat>>,
     mut status_events: EventWriter<StatusEvent>,
 ) {
     for event in player_interacted_events.iter() {
-        let (cat, mut affection) = match cat.get_mut(event.interacted_entity) {
+        let (mut affection, sleeping) = match cat.get_mut(event.interacted_entity) {
             Ok(result) => result,
             Err(_) => continue,
         };
-        let (reaction, message) = petting_reaction(&cat, &affection);
+        let (reaction, message) = petting_reaction(sleeping.is_some(), &affection);
         status_events.send(StatusEvent::timed_message(
             event.player_entity,
             message,
