@@ -1,12 +1,11 @@
 use bevy::prelude::*;
-use crate::animation::{AnimationData, AnimData, TextureResources};
+use crate::animation::{AnimationData, /*AnimData,*/ TextureResources};
 use crate::cat::*;
 use crate::customer::Customer;
 use crate::geom::{HasSize, MapSize, TILE_SIZE, ScreenRect, map_to_screen};
 use crate::interaction::Interactable;
 use crate::map::Map;
 use crate::movable::Movable;
-use crate::message_line::{StatusMessage, StatusMessageBundle};
 use crate::player::Player;
 use crate::tea::{Ingredient, TeaStash, TeaPot, Kettle, Cupboard};
 use rand::Rng;
@@ -262,7 +261,7 @@ fn spawn_sprite_inner(
             commands.spawn((Chair, sized, sprite));
         }
         EntityType::Prop => {
-            commands.spawn((Prop, movable, sized, sprite));
+            commands.spawn((Prop, movable, sized/*, sprite*/));
         }
         EntityType::Door => {
             commands.spawn((Door, movable, sized, sprite));
@@ -330,33 +329,12 @@ fn spawn_sprite_inner(
 }
 
 pub fn setup(
-    mut commands: Commands,
-    mut map: ResMut<Map>,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut commands: &mut Commands,
+    //mut map: ResMut<Map>,
+    map: &mut Map,
+    //texture_resources: Res<TextureResources>,
+    texture_resources: &TextureResources,
 ) {
-    let texture_handle = asset_server.load("cat.png");
-    let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 5, None, None);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
-
-    let texture_handle2 = asset_server.load("interiors.png");
-    let texture_atlas2 =
-        TextureAtlas::from_grid(texture_handle2, Vec2::new(TILE_SIZE, TILE_SIZE), 48, 16, None, None);
-    let texture_atlas_handle2 = texture_atlases.add(texture_atlas2);
-
-    let texture_resources = TextureResources {
-        atlas: texture_atlas_handle,
-        interior_atlas: texture_atlas_handle2,
-        frame_data: vec![
-            AnimData { index: 0, frames: 4, delay: 0.1, },
-            AnimData { index: 4, frames: 4, delay: 0.1, },
-            AnimData { index: 8, frames: 4, delay: 0.1, },
-            AnimData { index: 12, frames: 4, delay: 0.1, },
-            AnimData { index: 16, frames: 1, delay: 0.1, },
-            AnimData { index: 17, frames: 2, delay: 0.8, },
-        ],
-    };
 
     for pos in &map.cat_beds {
         let rect = map_to_screen(pos, &MapSize { width: 2, height: 2 }, &map);
@@ -396,30 +374,4 @@ pub fn setup(
             Some(&texture_resources),
         );
     }
-
-    commands.spawn(
-        StatusMessageBundle {
-            message: StatusMessage::default(),
-            text: TextBundle::from_section(
-                "",
-                TextStyle {
-                    font: asset_server.load("Lato-Medium.ttf"),
-                    font_size: 25.0,
-                    color: Color::WHITE,
-                },
-            )
-                .with_text_alignment(TextAlignment::TOP_CENTER)
-                .with_style(Style {
-                    position_type: PositionType::Absolute,
-                    position: UiRect {
-                        bottom: Val::Px(5.0),
-                        right: Val::Px(15.0),
-                        ..default()
-                    },
-                    ..default()
-                }),
-        }
-    );
-
-    commands.insert_resource(texture_resources);
 }

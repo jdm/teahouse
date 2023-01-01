@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_ecs_tilemap::TilemapPlugin;
 use crate::animation::AnimationPlugin;
 use crate::cat::CatPlugin;
 use crate::customer::CustomerPlugin;
@@ -38,6 +39,7 @@ fn main() {
     let mut app = App::new();
     app
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
+        .add_plugin(TilemapPlugin)
         .add_plugin(TeaPlugin)
         .add_plugin(CustomerPlugin)
         .add_plugin(CatPlugin)
@@ -51,7 +53,7 @@ fn main() {
         .add_plugin(MapPlugin)
         .add_plugin(PlayerPlugin)
         .add_state(GameState::InGame)
-        .add_startup_system(setup)
+        //.add_startup_system(setup.after(crate::map::setup_map))
         .add_system(bevy::window::close_on_esc);
 
     #[cfg(target_arch = "wasm32")]

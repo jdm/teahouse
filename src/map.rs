@@ -1,6 +1,8 @@
 use bevy::prelude::*;
+use bevy_ecs_tilemap::prelude::*;
+use crate::animation::{AnimData, TextureResources};
 use crate::entity::{EntityType, TileDirection};
-use crate::geom::{MapPos, MapSize};
+use crate::geom::{MapPos, MapSize, TILE_SIZE};
 use crate::tea::Ingredient;
 use rand::Rng;
 use std::collections::HashMap;
@@ -9,8 +11,10 @@ pub struct MapPlugin;
 
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
-        let map = read_map(MAP);
-        app.insert_resource(map);
+        //let map = read_map(MAP);
+        app
+            .add_startup_system(setup_map);
+            //.insert_resource(map);
     }
 }
 
@@ -38,9 +42,95 @@ pub struct Map {
     pub cat_beds: Vec<MapPos>,
     pub width: usize,
     pub height: usize,
+    pub collision_map: Vec<Vec<i32>>,
 }
 
-fn read_map(data: &[&str]) -> Map {
+pub fn setup_map(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+) {
+    let texture_handle = asset_server.load("cat.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 5, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    let texture_handle2 = asset_server.load("interiors.png");
+    let texture_atlas2 =
+        TextureAtlas::from_grid(texture_handle2.clone(), Vec2::new(TILE_SIZE, TILE_SIZE), 48, 16, None, None);
+    let texture_atlas_handle2 = texture_atlases.add(texture_atlas2);
+
+    let texture_resources = TextureResources {
+        atlas: texture_atlas_handle,
+        interior_atlas: texture_atlas_handle2,
+        frame_data: vec![
+            AnimData { index: 0, frames: 4, delay: 0.1, },
+            AnimData { index: 4, frames: 4, delay: 0.1, },
+            AnimData { index: 8, frames: 4, delay: 0.1, },
+            AnimData { index: 12, frames: 4, delay: 0.1, },
+            AnimData { index: 16, frames: 1, delay: 0.1, },
+            AnimData { index: 17, frames: 2, delay: 0.8, },
+        ],
+    };
+
+    let tilemap_entity = commands.spawn_empty().id();
+    let map_size = TilemapSize {
+        x: MAP[0].len() as u32,
+        y: MAP.len() as u32,
+    };
+    let mut tile_storage = TileStorage::empty(map_size);
+
+    let mut collision_tiles = vec![vec![1; MAP[0].len()]; MAP.len()];
+
+    for (y, line) in MAP.iter().enumerate() {
+        for (x, ch) in line.chars().enumerate() {
+            let index = if ch == 'x' {
+                collision_tiles[y][x] = 0;
+                (2, 2)
+            } else {
+                (4, 8)
+            };
+            let tile_pos = TilePos { x: x as u32, y: y as u32 };
+            let tile_entity = commands
+                .spawn(TileBundle {
+                    position: tile_pos,
+                    tilemap_id: TilemapId(tilemap_entity),
+                    texture_index: TileTextureIndex(index.1 * 48 + index.0),
+                    ..Default::default()
+                })
+                .id();
+            tile_storage.set(&tile_pos, tile_entity);
+        }
+    }
+
+    let tile_size = TilemapTileSize { x: TILE_SIZE, y: TILE_SIZE };
+    let grid_size = tile_size.into();
+    let map_type = TilemapType::default();
+
+    commands.entity(tilemap_entity).insert(TilemapBundle {
+        grid_size,
+        map_type,
+        size: map_size,
+        storage: tile_storage,
+        texture: TilemapTexture::Single(texture_handle2.clone()),
+        tile_size,
+        transform: get_tilemap_center_transform(&map_size, &grid_size, &map_type, 0.0),
+        ..Default::default()
+     });
+
+    let mut map = read_map(MAP, &mut commands);
+    map.collision_map = collision_tiles;
+
+    crate::entity::setup(&mut commands, &mut map, &texture_resources);
+
+    commands.insert_resource(map);
+    commands.insert_resource(texture_resources);
+}
+
+fn read_map(
+    data: &[&str],
+    _commands: &mut Commands,
+) -> Map {
     let mut map = Map {
         height: data.len(),
         width: data[0].len(),

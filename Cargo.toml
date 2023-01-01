@@ -8,6 +8,7 @@ basic-pathfinding = { git = "https://github.com/jdm/basic-pathfinding", branch =
 
 [dependencies]
 basic-pathfinding = "0.2"
+bevy_ecs_tilemap = { version = "0.9", features = ["atlas"] }
 rand = "0.8"
 rand_derive2 = "0.1"
 

@@ -6,9 +6,39 @@ pub struct MessageLinePlugin;
 impl Plugin for MessageLinePlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_startup_system(create_message_line)
             .add_system(update_status_line)
             .add_event::<StatusEvent>();
     }
+}
+
+fn create_message_line(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
+    commands.spawn(
+        StatusMessageBundle {
+            message: StatusMessage::default(),
+            text: TextBundle::from_section(
+                "",
+                TextStyle {
+                    font: asset_server.load("Lato-Medium.ttf"),
+                    font_size: 25.0,
+                    color: Color::WHITE,
+                },
+            )
+                .with_text_alignment(TextAlignment::TOP_CENTER)
+                .with_style(Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect {
+                        bottom: Val::Px(5.0),
+                        right: Val::Px(15.0),
+                        ..default()
+                    },
+                    ..default()
+                }),
+        }
+    );
 }
 
 pub const DEFAULT_EXPIRY: Duration = Duration::from_secs(5);

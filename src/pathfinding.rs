@@ -36,7 +36,8 @@ fn update_pathing_grid(
     map: Res<Map>,
     mut grid: ResMut<PathingGrid>,
 ) {
-    let mut tiles = vec![vec![1; map.width]; map.height];
+    //let mut tiles = vec![vec![1; map.width]; map.height];
+    let mut tiles = map.collision_map.clone();
     // We include Movable even though it's unused to only chart the position of physical
     // objects that block walking.
     for (_movable, transform, sized) in &entities {
