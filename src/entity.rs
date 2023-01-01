@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::animation::{AnimationData, AnimData, AnimationTimer, TextureResources};
+use crate::animation::{AnimationData, AnimData, TextureResources};
 use crate::cat::*;
 use crate::customer::Customer;
 use crate::geom::{HasSize, MapSize, TILE_SIZE, ScreenRect, map_to_screen};
@@ -220,8 +220,7 @@ fn spawn_sprite_inner(
 
             commands.spawn((
                 Cat::default(),
-                AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
-                AnimationData { current_animation: CatAnimationState::Sit.into() },
+                AnimationData { current_animation: CatAnimationState::Sleep.into() },
                 Affection::default(),
                 Facing(FacingDirection::Down),
                 crate::cat::State::default(),
@@ -319,11 +318,12 @@ pub fn setup(
     let texture_resources = TextureResources {
         atlas: texture_atlas_handle,
         frame_data: vec![
-            AnimData { index: 0, frames: 4 },
-            AnimData { index: 4, frames: 4 },
-            AnimData { index: 8, frames: 4 },
-            AnimData { index: 12, frames: 4 },
-            AnimData { index: 16, frames: 1 },
+            AnimData { index: 0, frames: 4, delay: 0.1, },
+            AnimData { index: 4, frames: 4, delay: 0.1, },
+            AnimData { index: 8, frames: 4, delay: 0.1, },
+            AnimData { index: 12, frames: 4, delay: 0.1, },
+            AnimData { index: 16, frames: 1, delay: 0.1, },
+            AnimData { index: 17, frames: 2, delay: 0.8, },
         ],
     };
 

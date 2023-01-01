@@ -5,6 +5,7 @@ pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_system(update_animation_timer)
             .add_system(animate_sprite);
     }
 }
@@ -12,6 +13,7 @@ impl Plugin for AnimationPlugin {
 pub struct AnimData {
     pub index: usize,
     pub frames: usize,
+    pub delay: f32,
 }
 
 #[derive(Resource)]
@@ -30,9 +32,27 @@ pub struct AnimationData {
 }
 
 impl AnimationData {
+    pub fn is_current<T: Into<usize>>(&self, animation: T) -> bool {
+        self.current_animation == animation.into()
+    }
+
     pub fn set_current<T: Into<usize>>(&mut self, current: T) {
         let animation = current.into();
         self.current_animation = animation;
+    }
+}
+
+fn update_animation_timer(
+    texture_resources: Res<TextureResources>,
+    mut query: Query<(Entity, &AnimationData, &mut TextureAtlasSprite), Changed<AnimationData>>,
+    mut commands: Commands,
+) {
+    for (entity, data, mut sprite) in &mut query {
+        let anim_data = &texture_resources.frame_data[data.current_animation];
+        commands.entity(entity).insert(
+            AnimationTimer(Timer::from_seconds(anim_data.delay, TimerMode::Repeating))
+        );
+        sprite.index = anim_data.index;
     }
 }
 
@@ -49,7 +69,10 @@ fn animate_sprite(
         timer.tick(time.delta());
         if timer.just_finished() {
             let frames = &texture_resources.frame_data[data.current_animation];
-            sprite.index = frames.index + (sprite.index + 1) % frames.frames;
+            sprite.index += 1;
+            if sprite.index >= frames.index + frames.frames {
+                sprite.index = frames.index;
+            }
         }
     }
 }

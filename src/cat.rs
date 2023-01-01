@@ -4,7 +4,7 @@ use crate::customer::Customer;
 use crate::entity::{Affection, RelationshipStatus, Reaction, Facing, FacingDirection};
 use crate::interaction::PlayerInteracted;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
-use crate::pathfinding::PathfindTarget;
+use crate::pathfinding::{PathfindTarget, stop_current_pathfinding};
 use crate::player::Player;
 use rand::Rng;
 use rand::seq::IteratorRandom;
@@ -17,18 +17,21 @@ impl Plugin for CatPlugin {
         app
             .add_system(interact_with_cat)
             .add_system(run_sleep)
+            .add_system(run_sit)
             .add_system(run_follow)
             .add_system(run_bed)
             .add_system(update_animation_state);
     }
 }
 
+#[derive(Copy, Clone)]
 pub enum CatAnimationState {
     WalkDown = 0,
     WalkRight = 1,
     WalkUp = 2,
     WalkLeft = 3,
     Sit = 4,
+    Sleep = 5,
 }
 
 impl From<CatAnimationState> for usize {
@@ -42,6 +45,9 @@ pub struct CatBed;
 
 #[derive(Component)]
 pub struct Sleeping(Timer);
+
+#[derive(Component)]
+struct Sitting(Timer);
 
 #[derive(Component)]
 struct MovingToEntity;
@@ -59,10 +65,36 @@ fn run_sleep(
         return;
     }
     let (cat_entity, mut state, mut animation) = cat.single_mut();
-    animation.set_current(CatAnimationState::Sit);
+    if !animation.is_current(CatAnimationState::Sleep) {
+        animation.set_current(CatAnimationState::Sleep);
+    }
     state.0.0.tick(time.delta());
     if state.0.0.finished() {
         commands.entity(cat_entity).remove::<State<Sleeping>>();
+
+        let mut rng = rand::thread_rng();
+        let human_entity = humans.iter().choose(&mut rng).unwrap();
+        commands.entity(cat_entity).insert(PathfindTarget::new(human_entity, false));
+        commands.entity(cat_entity).insert(State(MovingToEntity));
+    }
+}
+
+fn run_sit(
+    mut cat: Query<(Entity, &mut State<Sitting>, &mut AnimationData), With<Cat>>,
+    humans: Query<Entity, Or<(With<Player>, With<Customer>)>>,
+    time: Res<Time>,
+    mut commands: Commands,
+) {
+    if cat.is_empty() {
+        return;
+    }
+    let (cat_entity, mut state, mut animation) = cat.single_mut();
+    if !animation.is_current(CatAnimationState::Sit) {
+        animation.set_current(CatAnimationState::Sit);
+    }
+    state.0.0.tick(time.delta());
+    if state.0.0.finished() {
+        commands.entity(cat_entity).remove::<State<Sitting>>();
 
         let mut rng = rand::thread_rng();
         let human_entity = humans.iter().choose(&mut rng).unwrap();
@@ -85,6 +117,16 @@ fn run_follow(
         let cat_bed_entity = cat_bed.single();
         commands.entity(cat_entity).insert(PathfindTarget::new(cat_bed_entity, true));
         commands.entity(cat_entity).insert(State(MovingToBed));
+        return;
+    }
+
+    let mut rng = rand::thread_rng();
+    if rng.gen_bool(0.002) {
+        let update = |entity: Entity, commands: &mut Commands| {
+            commands.entity(entity).remove::<State<MovingToEntity>>();
+            commands.entity(entity).insert(State(Sitting(create_sleep_timer())));
+        };
+        stop_current_pathfinding(cat_entity, &mut commands, update);
     }
 }
 
@@ -153,7 +195,9 @@ fn update_animation_state(
         FacingDirection::Right => CatAnimationState::WalkRight,
         FacingDirection::Left => CatAnimationState::WalkLeft,
     };
-    data.set_current(state);
+    if !data.is_current(state) {
+        data.set_current(state);
+    }
 }
 
 fn interact_with_cat(

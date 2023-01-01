@@ -78,11 +78,23 @@ impl PathfindTarget {
     }
 }
 
+type Callback = fn(Entity, &mut Commands);
+
+#[derive(Component)]
+struct StopOnCurrentTile(Callback);
+
+// Interrupt the pathfinding for this entity once it reaches the next tile.
+// Run a callback when this occurs, to support operations like transitioning the
+// entity into a new state.
+pub fn stop_current_pathfinding(entity: Entity, commands: &mut Commands, update: Callback) {
+    commands.entity(entity).insert(StopOnCurrentTile(update));
+}
+
 fn pathfind_to_target(
     mut set: ParamSet<(
         Query<&PathfindTarget>,
         Query<(&Transform, &HasSize)>,
-        Query<(Entity, &mut PathfindTarget, &mut Transform, &mut Movable, Option<&mut Facing>, &HasSize)>,
+        Query<(Entity, &mut PathfindTarget, &mut Transform, &mut Movable, Option<&mut Facing>, &HasSize, Option<&StopOnCurrentTile>)>,
     )>,
     map: Res<Map>,
     mut commands: Commands,
@@ -107,7 +119,7 @@ fn pathfind_to_target(
         }
     }
 
-    for (entity, mut target, mut transform, mut movable, mut facing, sized) in &mut set.p2() {
+    for (entity, mut target, mut transform, mut movable, mut facing, sized, will_stop) in &mut set.p2() {
         let current_point = transform_to_map_pos(&transform, &map, &sized.size);
         if target.next_point.map_or(true, |point| current_point == point) {
             // We're within the right tile, but still need to move to the right subtile coordinates.
@@ -124,6 +136,13 @@ fn pathfind_to_target(
             }
 
             reset_movable_pos(&mut transform, &mut movable, &sized, &map, current_point);
+
+            if let Some(will_stop) = will_stop {
+                commands.entity(entity).remove::<PathfindTarget>();
+                commands.entity(entity).remove::<StopOnCurrentTile>();
+                (will_stop.0)(entity, &mut commands);
+                continue;
+            }
 
             for (debug_entity, debug_tile, _) in &debug_tile {
                 if debug_tile.for_entity == entity {
