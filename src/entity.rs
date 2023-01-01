@@ -75,6 +75,14 @@ impl Affection {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum TileDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
 #[derive(Component)]
 pub struct Prop;
 
@@ -92,7 +100,7 @@ pub enum EntityType {
     Customer(Color),
     Player,
     Prop,
-    Chair,
+    Chair(TileDirection),
     Door,
     Stove,
     TeaStash(Ingredient, u32),
@@ -133,7 +141,7 @@ fn spawn_sprite_inner(
         EntityType::Player => Color::rgb(0.25, 0.25, 0.75),
         EntityType::Customer(color) => color,
         EntityType::Prop => Color::rgb(0.25, 0.15, 0.0),
-        EntityType::Chair => Color::rgb(0.15, 0.05, 0.0),
+        EntityType::Chair(..) => Color::rgb(0.15, 0.05, 0.0),
         EntityType::Door => Color::rgb(0.6, 0.2, 0.2),
         EntityType::Stove => Color::rgb(0.8, 0.8, 0.8),
         EntityType::TeaStash(..) => Color::rgb(0.3, 0.3, 0.3),
@@ -144,7 +152,7 @@ fn spawn_sprite_inner(
         EntityType::TeaPot => Color::GRAY,
     };
     let z = match entity {
-        EntityType::Chair | EntityType::CatBed => 0.,
+        EntityType::Chair(..) | EntityType::CatBed => 0.,
         _ => 0.1,
     };
     let sprite = SpriteBundle {
@@ -234,7 +242,23 @@ fn spawn_sprite_inner(
                 sprite,
             ));
         }
-        EntityType::Chair => {
+        EntityType::Chair(dir) => {
+            let y_index = match dir {
+                TileDirection::Right => 0,
+                TileDirection::Down => 1,
+                TileDirection::Left => 2,
+                TileDirection::Up => 3,
+            };
+            let sprite = SpriteSheetBundle {
+                texture_atlas: textures.unwrap().interior_atlas.clone(),
+                sprite: TextureAtlasSprite {
+                    index: ((6 + y_index) * 48 + 15),
+                    ..default()
+                },
+                transform: Transform::from_translation(pos.extend(z)),
+                ..default()
+            };
+
             commands.spawn((Chair, sized, sprite));
         }
         EntityType::Prop => {
@@ -315,8 +339,15 @@ pub fn setup(
     let texture_atlas =
         TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 5, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    let texture_handle2 = asset_server.load("interiors.png");
+    let texture_atlas2 =
+        TextureAtlas::from_grid(texture_handle2, Vec2::new(TILE_SIZE, TILE_SIZE), 48, 16, None, None);
+    let texture_atlas_handle2 = texture_atlases.add(texture_atlas2);
+
     let texture_resources = TextureResources {
         atlas: texture_atlas_handle,
+        interior_atlas: texture_atlas_handle2,
         frame_data: vec![
             AnimData { index: 0, frames: 4, delay: 0.1, },
             AnimData { index: 4, frames: 4, delay: 0.1, },

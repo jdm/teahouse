@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::entity::EntityType;
+use crate::entity::{EntityType, TileDirection};
 use crate::geom::{MapPos, MapSize};
 use crate::tea::Ingredient;
 use rand::Rng;
@@ -53,7 +53,6 @@ fn read_map(data: &[&str]) -> Map {
         ('s', EntityType::Stove),
         ('K', EntityType::Kettle),
         ('k', EntityType::Cat),
-        ('c', EntityType::Chair),
         ('T', EntityType::TeaPot),
     ]);
 
@@ -73,6 +72,17 @@ fn read_map(data: &[&str]) -> Map {
                 ));
             } else if ch == 'b' {
                 map.cat_beds.push(MapPos { x, y });
+            } else if ch == 'c' {
+                let dir = if data[y].as_bytes()[x-1] == b'x' {
+                    TileDirection::Left
+                } else if data[y].as_bytes()[x+1] == b'x' {
+                    TileDirection::Right
+                } else if data[y-1].as_bytes()[x] == b'x' {
+                    TileDirection::Up
+                } else {
+                    TileDirection::Down
+                };
+                map.entities.push((EntityType::Chair(dir), MapPos { x, y }));
             } else if ch == 'x' {
                 let mut length = 1;
                 while let Some((_, 'x')) = chars.peek() {
