@@ -247,7 +247,7 @@ fn spawn_teapot(
         let map_size = MapSize { width: 1, height: 1 };
         let rect = map_to_screen(&event.pos, &map_size, &map);
         // FIXME: make better Z defaults and share them.
-        let pos = Vec3::new(rect.x, rect.y, 0.1);
+        let pos = Vec3::new(rect.x, rect.y, 0.9);
 
         let sprite = SpriteBundle {
             sprite: Sprite {
