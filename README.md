@@ -5,7 +5,6 @@ TODO:
 * make z-ordering occur based on y position sorting
   * system that runs each frame and sets z property based on tile position of each movable?
 * spawn teapots on adjacent prop entity
-* player picking up, carrying, putting down entity
 * player inventory and active item
 * move animation frame data into animation state values
 * generalize facing direction animation state updates
