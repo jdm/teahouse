@@ -100,13 +100,13 @@ impl FromWorld for StartingIngredients {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TeaRecipe {
-    ingredients: Vec<(Ingredient, u32)>,
-    name: String,
+    pub ingredients: Vec<(Ingredient, u32)>,
+    pub name: String,
 }
 
 #[derive(Resource, Debug)]
 pub struct Menu {
-    teas: Vec<TeaRecipe>,
+    pub teas: Vec<TeaRecipe>,
 }

@@ -35,7 +35,10 @@ fn adjust_held_item(
     mut held_transform: Query<&mut Transform>,
 ) {
     for (holding, facing) in &holder {
-        let mut transform = held_transform.get_mut(holding.entity).unwrap();
+        let mut transform = match held_transform.get_mut(holding.entity) {
+            Ok(transform) => transform,
+            Err(_) => continue,
+        };
         transform.translation = facing.to_translation()
             .extend(transform.translation.z);
     }
