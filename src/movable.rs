@@ -117,7 +117,7 @@ pub fn reset_movable_pos(transform: &mut Transform, movable: &mut Movable, sized
 }
 
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct Movable {
     pub speed: Vec2,
     pub size: Vec2,

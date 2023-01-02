@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use crate::animation::{AnimationData, AnimData, TextureResources};
 use crate::cat::*;
 use crate::customer::Customer;
-use crate::geom::{HasSize, MapSize, TILE_SIZE, ScreenRect, map_to_screen};
+use crate::geom::{HasSize, MapSize, TILE_SIZE, ScreenRect, map_to_screen, MapPos};
 use crate::interaction::Interactable;
 use crate::map::Map;
 use crate::movable::Movable;
@@ -11,6 +11,7 @@ use crate::player::Player;
 use crate::tea::{Ingredient, TeaStash, TeaPot, Kettle, Cupboard};
 use rand::Rng;
 use std::default::Default;
+use tiled::{Loader, LayerType, PropertyValue, ObjectShape};
 
 #[derive(Component)]
 pub struct Paused;
@@ -75,6 +76,7 @@ impl Affection {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum TileDirection {
     Up,
@@ -95,6 +97,7 @@ pub struct Door;
 #[derive(Component)]
 pub struct Chair;
 
+#[allow(dead_code)]
 #[derive(Clone, PartialEq, Debug)]
 pub enum EntityType {
     Customer(Color),
@@ -187,7 +190,7 @@ fn spawn_sprite_inner(
             ))
                 .with_children(|parent| {
                     let mut bundle = Camera2dBundle::default();
-                    bundle.transform.scale = Vec3::new(0.75, 0.75, 1.0);
+                    bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
                     parent.spawn(bundle);
                 });
         }
@@ -331,7 +334,7 @@ fn spawn_sprite_inner(
 
 pub fn setup(
     mut commands: Commands,
-    mut map: ResMut<Map>,
+    map2: ResMut<Map>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
@@ -345,7 +348,7 @@ pub fn setup(
         TextureAtlas::from_grid(texture_handle2, Vec2::new(TILE_SIZE, TILE_SIZE), 48, 16, None, None);
     let texture_atlas_handle2 = texture_atlases.add(texture_atlas2);
 
-    let texture_resources = TextureResources {
+    let textures = TextureResources {
         atlas: texture_atlas_handle,
         interior_atlas: texture_atlas_handle2,
         frame_data: vec![
@@ -358,43 +361,147 @@ pub fn setup(
         ],
     };
 
-    for pos in &map.cat_beds {
-        let rect = map_to_screen(pos, &MapSize { width: 2, height: 2 }, &map);
-        spawn_sprite(
-            EntityType::CatBed,
-            rect,
-            &mut commands,
-        )
-    }
+    let mut loader = Loader::new();
+    let map = loader.load_tmx_map("assets/teahouse.tmx").unwrap();
+    let mut z = 0.;
+    for layer in map.layers() {
+        let properties = &layer.properties;
+        let solid = properties.get("solid").map_or(false, |value| *value == PropertyValue::BoolValue(true));
+        println!("{:?}", layer.name);
+        match layer.layer_type() {
+            LayerType::TileLayer(layer) => {
+                for y in 0..map.height {
+                    for x in 0..map.width {
+                        let tile = match layer.get_tile(x as i32, y as i32) {
+                            Some(tile) => tile,
+                            None => continue,
+                        };
+                        let pos = MapPos { x: x as usize, y: y as usize };
+                        let size = MapSize { width: 1, height: 1 };
+                        let rect = map_to_screen(&pos, &size, &map2);
+                        let pos = Vec2::new(rect.x, rect.y);
+                        let sprite = SpriteSheetBundle {
+                            texture_atlas: textures.interior_atlas.clone(),
+                            sprite: TextureAtlasSprite {
+                                index: tile.id() as usize,
+                                ..default()
+                            },
+                            transform: Transform::from_translation(pos.extend(z)),
+                            ..default()
+                        };
+                        let sized = HasSize { size };
+                        if solid {
+                            let size = Vec2::new(TILE_SIZE, TILE_SIZE);
+                            let movable = Movable {
+                                size: size,
+                                ..default()
+                            };
+                            commands.spawn((Prop, movable, sized, sprite));
+                        } else {
+                            commands.spawn((Prop, sized, sprite));
+                        }
+                    }
+                }
+            }
 
-    for pos in &map.cupboards {
-        let rect = map_to_screen(pos, &MapSize { width: 2, height: 1 }, &map);
-        let mut rng = rand::thread_rng();
-        spawn_sprite(
-            EntityType::Cupboard(rng.gen_range(4..10)),
-            rect,
-            &mut commands,
-        )
-    }
+            LayerType::ObjectLayer(layer) => {
+                for object in layer.objects() {
+                    println!("{:?}", *object);
+                    let kind = match object.properties.get("kind") {
+                        Some(PropertyValue::StringValue(kind)) => kind,
+                        _ => continue,
+                    };
+                    println!("{:?}", kind);
+                    let (width, height) = match object.shape {
+                        ObjectShape::Rect { width, height } => (width, height),
+                        _ => continue,
+                    };
+                    let size = MapSize {
+                        width: (width / TILE_SIZE) as usize,
+                        height: (height / TILE_SIZE) as usize,
+                    };
+                    let movable = Movable {
+                        size: Vec2::new(width, height),
+                        ..default()
+                    };
+                    let sized = HasSize { size };
+                    let pos = MapPos { x: (object.x / TILE_SIZE) as usize, y: (object.y / TILE_SIZE) as usize };
+                    let rect = map_to_screen(&pos, &size, &map2);
+                    let transform = Transform {
+                        //translation: Vec3::new(object.x, object.y, 0.),
+                        translation: Vec3::ZERO,
+                        rotation: Quat::default(),
+                        scale: Vec3::splat(1.),
+                    };
 
-    for (size, pos) in &map.props {
-        let rect = map_to_screen(pos, size, &map);
-        spawn_sprite(
-            EntityType::Prop,
-            rect,
-            &mut commands,
-        )
-    }
+                    match kind.as_str() {
+                        "door" => {
+                            commands.spawn((Door, movable, sized, transform));
+                        }
+                        "catbed" => {
+                            commands.spawn((CatBed, sized, transform));
+                        }
+                        "kettle" => {
+                            commands.spawn((
+                                Kettle,
+                                Interactable {
+                                    highlight: Color::rgb(1., 1., 1.),
+                                    message: "Press X to fill the pot".to_string(),
+                                    ..default()
+                                },
+                                sized,
+                                transform,
+                            ));
+                        }
+                        "teastash" => {
+                            let ingredient = Ingredient::generate_random();
+                            let mut rng = rand::thread_rng();
+                            let amount = rng.gen_range(1..10);
+                            commands.spawn((
+                                TeaStash { ingredient, amount },
+                                Interactable {
+                                    highlight: Color::rgb(1., 1., 1.),
+                                    message: format!("Press X to pick up {:?}", ingredient),
+                                    ..default()
+                                },
+                                sized,
+                                transform,
+                            ));
+                        }
+                        "player" => {
+                            spawn_sprite(EntityType::Player, rect, &mut commands);
+                        }
+                        "teapot" => {
+                            spawn_sprite(EntityType::TeaPot, rect, &mut commands);
+                        }
+                        "cat" => {
+                            spawn_sprite_inner(EntityType::Cat, rect, &mut commands, Some(&textures));
+                        }
+                        "chair" => {
+                            commands.spawn((Chair, sized, transform));
+                        }
+                        "cupboard" => {
+                            let mut rng = rand::thread_rng();
+                            commands.spawn((
+                                Cupboard { teapots: rng.gen_range(4..10) },
+                                Interactable {
+                                    highlight: Color::rgb(1., 1., 1.),
+                                    message: "Press X to pick up teapot".to_string(),
+                                    ..default()
+                                },
+                                movable,
+                                sized,
+                                transform,
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
 
-    for (entity_type, pos) in std::mem::take(&mut map.entities) {
-        let size = MapSize { width: 1, height: 1 };
-        let rect = map_to_screen(&pos, &size, &map);
-        spawn_sprite_inner(
-            entity_type,
-            rect,
-            &mut commands,
-            Some(&texture_resources),
-        );
+            _ => {}
+        }
+        z += 0.1;
     }
 
     commands.spawn(
@@ -421,5 +528,5 @@ pub fn setup(
         }
     );
 
-    commands.insert_resource(texture_resources);
+    commands.insert_resource(textures);
 }

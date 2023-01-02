@@ -10,6 +10,7 @@ basic-pathfinding = { git = "https://github.com/jdm/basic-pathfinding", branch =
 basic-pathfinding = "0.2"
 rand = "0.8"
 rand_derive2 = "0.1"
+tiled = "0.10"
 
 [dependencies.bevy]
 version = "0.9"
