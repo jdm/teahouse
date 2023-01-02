@@ -1,0 +1,23 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "",
+    "expandedProjectPaths": [
+    ],
+    "fileStates": {
+        "interior.tsx": {
+            "dynamicWrapping": false
+        }
+    },
+    "last.imagePath": "/Users/jdm/src/teahouse/assets",
+    "map.lastUsedFormat": "tmx",
+    "openFiles": [
+    ],
+    "project": "map.tiled-project",
+    "property.type": "string",
+    "recentFiles": [
+    ],
+    "tileset.lastUsedFormat": "tsx"
+}
