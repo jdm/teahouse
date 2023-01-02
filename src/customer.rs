@@ -53,13 +53,16 @@ fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
 }
 
 fn run_customer(
-    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&TeaPot>, &Movable, &Transform), Without<Paused>>,
-    chairs: Query<Entity, With<Chair>>,
+    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&TeaPot>, &Transform, &mut Facing, &HasSize), Without<Paused>>,
+    chairs: Query<(Entity, &Transform, &HasSize), With<Chair>>,
     doors: Query<Entity, With<Door>>,
+    props: Query<&Transform, (With<Prop>, With<Movable>)>,
     mut commands: Commands,
     time: Res<Time>,
+    mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
+    map: Res<Map>,
 ) {
-    for (entity, mut customer, target, teapot, movable, transform) in &mut q {
+    for (entity, mut customer, target, teapot, transform, mut facing, sized) in &mut q {
         let mut move_to = false;
         let mut leave = false;
         let mut sit = false;
@@ -68,7 +71,11 @@ fn run_customer(
             CustomerState::LookingForChair => {
                 if target.is_none() {
                     let mut rng = rand::thread_rng();
-                    let chair_entity = chairs.iter().choose(&mut rng).unwrap();
+                    let chair_entity = chairs
+                        .iter()
+                        .map(|(entity, _, _)| entity)
+                        .choose(&mut rng)
+                        .unwrap();
                     commands.entity(entity).insert(PathfindTarget::new(chair_entity, true));
                 } else {
                     move_to = true;
@@ -96,7 +103,36 @@ fn run_customer(
         }
 
         if sit {
+            // Verify that we made it to a chair and didn't just give up.
+            let current_pos = transform_to_map_pos(&transform, &map, &sized.size);
+            let mut on_chair = false;
+            for (_, chair_transform, chair_size) in &chairs {
+                let chair_pos = transform_to_map_pos(&chair_transform, &map, &chair_size.size);
+                if chair_pos == current_pos {
+                    on_chair = true;
+                    break;
+                }
+            }
+            if !on_chair {
+                customer.state = CustomerState::LookingForChair;
+                return;
+            }
+
             customer.state = CustomerState::WaitingForTea;
+            // Ensure the customer is facing an appropriate direction for a table,
+            // not just the last one they were moving.
+            let dirs = [FacingDirection::Up, FacingDirection::Down, FacingDirection::Left, FacingDirection::Right];
+            let neighbours = dirs
+                .iter()
+                .map(|dir| dir.adjust_pos(&current_pos))
+                .collect::<Vec<_>>();
+            for prop_transform in &props {
+                let prop_pos = transform_to_map_pos(&prop_transform, &map, &sized.size);
+                if let Some(idx) = neighbours.iter().position(|pos| *pos == prop_pos) {
+                    facing.0 = dirs[idx];
+                    break;
+                }
+            }
         }
 
         if drink {
