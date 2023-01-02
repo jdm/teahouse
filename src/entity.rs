@@ -198,6 +198,7 @@ fn spawn_sprite_inner(
             commands.spawn((
                 Customer::default(),
                 Affection::default(),
+                Facing(FacingDirection::Down),
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),
                     message: "Press X to talk".to_string(),
