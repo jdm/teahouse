@@ -86,10 +86,11 @@ fn animate_sprite(
         if timer.just_finished() {
             let atlas_data = &atlas_animation_data.data[handle];
             let frames = &atlas_data[data.current_animation];
-            sprite.index += 1;
-            if sprite.index >= frames.index + frames.frames {
-                sprite.index = frames.index;
+            let mut next_index = sprite.index + 1;
+            if next_index >= frames.index + frames.frames {
+                next_index = frames.index;
             }
+            sprite.index = next_index;
         }
     }
 }

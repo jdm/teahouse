@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::GameState;
+use crate::animation::{AtlasAnimationData, AnimationData, AnimData};
 use crate::dialog::show_message_box;
 use crate::entity::{
     Chair, Door, Reaction, Paused, Affection, Facing, FacingDirection, Prop
@@ -58,7 +59,7 @@ fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
 }
 
 fn run_customer(
-    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&Holding>, &Transform, &mut Facing, &HasSize), Without<Paused>>,
+    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&Holding>, &Transform, &mut Facing, &HasSize, &mut AnimationData), Without<Paused>>,
     chairs: Query<(Entity, &Transform, &HasSize), With<Chair>>,
     doors: Query<Entity, With<Door>>,
     props: Query<&Transform, (With<Prop>, With<Movable>)>,
@@ -67,7 +68,7 @@ fn run_customer(
     mut drop_events: EventWriter<DropHeldEntity>,
     map: Res<Map>,
 ) {
-    for (entity, mut customer, target, holding, transform, mut facing, sized) in &mut q {
+    for (entity, mut customer, target, holding, transform, mut facing, sized, mut animation) in &mut q {
         let mut move_to = false;
         let mut leave = false;
         let mut sit = false;
@@ -90,9 +91,17 @@ fn run_customer(
                 sit = target.is_none();
             }
             CustomerState::WaitingForTea => {
+                let anim_state = standing_conversion(facing.0);
+                if !animation.is_current(anim_state) {
+                    animation.set_current(anim_state);
+                }
                 drink = holding.is_some();
             }
             CustomerState::DrinkingTea(ref mut timer) => {
+                let anim_state = standing_conversion(facing.0);
+                if !animation.is_current(anim_state) {
+                    animation.set_current(anim_state);
+                }
                 timer.tick(time.delta());
                 leave = timer.finished();
             }
@@ -200,6 +209,24 @@ fn create_customer_timer() -> Timer {
     Timer::new(Duration::from_secs(secs), TimerMode::Once)
 }
 
+#[derive(Copy, Clone)]
+enum AnimationState {
+    WalkDown = 0,
+    WalkRight = 1,
+    WalkLeft = 2,
+    WalkUp = 3,
+    StandDown = 4,
+    StandRight = 5,
+    StandLeft = 6,
+    StandUp = 7,
+}
+
+impl From<AnimationState> for usize {
+    fn from(state: AnimationState) -> usize {
+        state as usize
+    }
+}
+
 pub struct NewCustomerEvent;
 
 fn spawn_customer_by_door(
@@ -217,9 +244,6 @@ fn spawn_customer_by_door(
         door_pos.x += 1;
         let screen_rect = map_to_screen(&door_pos, &size, &map);
 
-        let mut rng = rand::thread_rng();
-        let color = Color::rgb(rng.gen(), rng.gen(), rng.gen());
-
         let z = 0.1;
         let screen_size = Vec2::new(screen_rect.w, screen_rect.h);
         let movable = Movable {
@@ -232,14 +256,8 @@ fn spawn_customer_by_door(
         let pos = Vec3::new(screen_rect.x, screen_rect.y, z);
         let transform = Transform::from_translation(pos);
 
-        let sprite = SpriteBundle {
-            sprite: Sprite {
-                color,
-                custom_size: Some(screen_size),
-                rect: Some(Rect::new(TILE_SIZE, 0., TILE_SIZE * 2., TILE_SIZE)),
-                ..default()
-            },
-            texture: texture.0.clone(),
+        let sprite = SpriteSheetBundle {
+            texture_atlas: texture.0.clone(),
             transform,
             ..default()
         };
@@ -248,6 +266,10 @@ fn spawn_customer_by_door(
             Customer::default(),
             Affection::default(),
             Facing(FacingDirection::Down),
+            AnimationData {
+                current_animation: AnimationState::WalkDown.into(),
+                facing_conversion,
+            },
             Interactable {
                 highlight: Color::rgb(1., 1., 1.),
                 message: "Press X to talk".to_string(),
@@ -313,12 +335,48 @@ fn interact_with_customers(
 }
 
 #[derive(Resource)]
-struct CustomerTexture(Handle<Image>);
+struct CustomerTexture(Handle<TextureAtlas>);
 
 fn init_texture(
     asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut animation_data: ResMut<AtlasAnimationData>,
     mut commands: Commands,
 ) {
-    let people_handle = asset_server.load("people.png");
-    commands.insert_resource(CustomerTexture(people_handle));
+    let texture_handle = asset_server.load("woman.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 4, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    animation_data.data.insert(
+        texture_atlas_handle.clone(),
+        vec![
+            AnimData { index: 0, frames: 4, delay: 0.1, },
+            AnimData { index: 4, frames: 4, delay: 0.1, },
+            AnimData { index: 8, frames: 4, delay: 0.1, },
+            AnimData { index: 12, frames: 4, delay: 0.1, },
+            AnimData { index: 0, frames: 1, delay: 1., },
+            AnimData { index: 4, frames: 1, delay: 1., },
+            AnimData { index: 8, frames: 1, delay: 1., },
+            AnimData { index: 12, frames: 1, delay: 1., },
+        ],
+    );
+    commands.insert_resource(CustomerTexture(texture_atlas_handle));
+}
+
+fn standing_conversion(facing: FacingDirection) -> AnimationState {
+    match facing {
+        FacingDirection::Up => AnimationState::StandUp,
+        FacingDirection::Down => AnimationState::StandDown,
+        FacingDirection::Right => AnimationState::StandRight,
+        FacingDirection::Left => AnimationState::StandLeft,
+    }
+}
+
+fn facing_conversion(facing: FacingDirection) -> usize {
+    match facing {
+        FacingDirection::Up => AnimationState::WalkUp,
+        FacingDirection::Down => AnimationState::WalkDown,
+        FacingDirection::Right => AnimationState::WalkRight,
+        FacingDirection::Left => AnimationState::WalkLeft,
+    }.into()
 }
