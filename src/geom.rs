@@ -52,6 +52,7 @@ pub fn screen_to_map_pos_inner(x: f32, y: f32, map: &MapSize, size: &MapSize) ->
     MapPos { x: x as usize, y: y as usize }
 }
 
+#[allow(dead_code)]
 pub fn transform_to_screenrect(transform: &Transform, movable: &Movable) -> ScreenRect {
     ScreenRect {
         x: transform.translation.x,

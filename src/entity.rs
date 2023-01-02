@@ -8,7 +8,7 @@ use crate::map::Map;
 use crate::movable::Movable;
 use crate::message_line::{StatusMessage, StatusMessageBundle};
 use crate::player::Player;
-use crate::tea::{Ingredient, TeaStash, TeaPot, Kettle, Cupboard};
+use crate::tea::{Ingredient, TeaStash, Kettle, Cupboard, Sink, SpawnTeapotEvent};
 use rand::Rng;
 use std::default::Default;
 use tiled::{Loader, LayerType, PropertyValue, ObjectShape};
@@ -17,13 +17,29 @@ use tiled::{Loader, LayerType, PropertyValue, ObjectShape};
 pub struct Paused;
 
 #[derive(Component)]
-pub struct Item(pub EntityType);
+pub struct Item;
 
+#[derive(Copy, Clone, Debug)]
 pub enum FacingDirection {
     Up,
     Down,
     Left,
     Right,
+}
+
+impl FacingDirection {
+    pub fn adjust_pos(&self, pos: &MapPos) -> MapPos {
+        let offset = match self {
+            FacingDirection::Up => (0, -1),
+            FacingDirection::Down => (0, 1),
+            FacingDirection::Left => (-1, 0),
+            FacingDirection::Right => (1, 0),
+        };
+        MapPos {
+            x: (pos.x as isize + offset.0) as usize,
+            y: (pos.y as isize + offset.1) as usize,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -111,7 +127,6 @@ pub enum EntityType {
     CatBed,
     Cat,
     Kettle,
-    TeaPot,
 }
 
 pub const CAT_SPEED: f32 = 25.0;
@@ -152,7 +167,6 @@ fn spawn_sprite_inner(
         EntityType::CatBed => Color::rgb(0., 0., 0.25),
         EntityType::Cat => Color::BLACK,
         EntityType::Kettle => Color::LIME_GREEN,
-        EntityType::TeaPot => Color::GRAY,
     };
     let z = match entity {
         EntityType::Chair(..) | EntityType::CatBed => 0.,
@@ -202,30 +216,6 @@ fn spawn_sprite_inner(
                 Interactable {
                     highlight: Color::rgb(1., 1., 1.),
                     message: "Press X to talk".to_string(),
-                    ..default()
-                },
-                movable,
-                sized,
-                sprite,
-            ));
-        }
-        EntityType::TeaPot => {
-            let sprite = SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(size),
-                    ..default()
-                },
-                texture: textures.unwrap().teapot.clone(),
-                transform: Transform::from_translation(pos.extend(z)),
-                ..default()
-            };
-
-            commands.spawn((
-                TeaPot::default(),
-                Item(EntityType::TeaPot),
-                Interactable {
-                    highlight: Color::rgb(1., 1., 1.),
-                    message: "Press X to collect".to_string(),
                     ..default()
                 },
                 movable,
@@ -343,11 +333,13 @@ fn spawn_sprite_inner(
     }
 }
 
+
 pub fn setup(
     mut commands: Commands,
     map2: Res<Map>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
 ) {
     let teapot_handle = asset_server.load("teapot.png");
 
@@ -487,7 +479,7 @@ pub fn setup(
                             spawn_sprite(EntityType::Player, rect, &mut commands);
                         }
                         "teapot" => {
-                            spawn_sprite_inner(EntityType::TeaPot, rect, &mut commands, Some(&textures));
+                            teapot_spawner.send(SpawnTeapotEvent(pos));
                         }
                         "cat" => {
                             spawn_sprite_inner(EntityType::Cat, rect, &mut commands, Some(&textures));

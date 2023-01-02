@@ -1,14 +1,17 @@
 use bevy::prelude::*;
 use crate::GameState;
 use crate::dialog::show_message_box;
-use crate::entity::{Chair, Door, Reaction, EntityType, Paused, Affection, spawn_sprite};
-use crate::geom::{MapSize, transform_to_screenrect, map_to_screen, transform_to_map_pos, HasSize};
+use crate::entity::{
+    Chair, Door, Reaction, EntityType, Paused, Affection, Facing, FacingDirection,
+    Prop, spawn_sprite,
+};
+use crate::geom::{MapSize, map_to_screen, transform_to_map_pos, HasSize};
 use crate::interaction::PlayerInteracted;
 use crate::map::Map;
 use crate::movable::Movable;
 use crate::pathfinding::PathfindTarget;
 use crate::player::Player;
-use crate::tea::TeaPot;
+use crate::tea::{SpawnTeapotEvent, TeaPot};
 use rand::seq::IteratorRandom;
 use rand::Rng;
 use std::default::Default;
@@ -146,8 +149,9 @@ fn run_customer(
             let door_entity = doors.iter().choose(&mut rng).unwrap();
             commands.entity(entity).insert(PathfindTarget::new(door_entity, false));
 
-            let rect = transform_to_screenrect(&transform, &movable);
-            spawn_sprite(EntityType::TeaPot, rect, &mut commands);
+            let current_pos = transform_to_map_pos(&transform, &map, &sized.size);
+            let nearest = facing.0.adjust_pos(&current_pos);
+            teapot_spawner.send(SpawnTeapotEvent(nearest));
         }
     }
 }

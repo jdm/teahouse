@@ -143,7 +143,7 @@ fn drop_item(
 fn pick_up_item(
     mut player_interacted_events: EventReader<PlayerInteracted>,
     player_holding: Query<&Holding, With<Player>>,
-    mut items: Query<(&Item, &mut Transform)>,
+    mut items: Query<&mut Transform, With<Item>>,
     mut commands: Commands,
 ) {
     // If the player is already holding an item, they cannot pick up another one.
@@ -152,7 +152,7 @@ fn pick_up_item(
     }
 
     for event in player_interacted_events.iter() {
-        let (item, mut transform) = match items.get_mut(event.interacted_entity) {
+        let mut transform = match items.get_mut(event.interacted_entity) {
             Ok(result) => result,
             Err(_) => continue,
         };
@@ -161,7 +161,6 @@ fn pick_up_item(
         transform.translation = Vec2::ZERO.extend(transform.translation.z);
         commands.entity(event.player_entity).insert(Holding {
             entity: event.interacted_entity,
-            _entity_type: item.0.clone(),
         });
 
         // Ensure that carried items aren't considered when checking passability.

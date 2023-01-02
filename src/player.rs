@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::entity::{EntityType, Facing, FacingDirection};
+use crate::entity::{Facing, FacingDirection};
 use crate::geom::TILE_SIZE;
 use crate::tea::Ingredient;
 use std::collections::HashMap;
@@ -7,7 +7,6 @@ use std::collections::HashMap;
 #[derive(Component)]
 pub struct Holding {
     pub entity: Entity,
-    pub _entity_type: EntityType,
 }
 
 #[derive(Component, Default)]

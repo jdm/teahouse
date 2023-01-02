@@ -1,7 +1,12 @@
 use bevy::prelude::*;
 use bevy::utils::Instant;
-use crate::interaction::PlayerInteracted;
+use crate::animation::TextureResources;
+use crate::entity::Item;
+use crate::geom::{TILE_SIZE, MapSize, MapPos, HasSize, map_to_screen};
+use crate::interaction::{Interactable, PlayerInteracted};
+use crate::map::Map;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
+use crate::movable::Movable;
 use crate::player::Player;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
@@ -12,6 +17,8 @@ pub struct TeaPlugin;
 impl Plugin for TeaPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_event::<SpawnTeapotEvent>()
+            .add_system(spawn_teapot)
             .add_system(interact_with_stash)
             .add_system(interact_with_cupboards)
             .add_system(interact_with_kettles);
@@ -160,6 +167,54 @@ fn interact_with_kettles(
             event.player_entity,
             message,
             DEFAULT_EXPIRY,
+        ));
+    }
+}
+
+pub struct SpawnTeapotEvent(pub MapPos);
+
+fn spawn_teapot(
+    mut events: EventReader<SpawnTeapotEvent>,
+    textures: Res<TextureResources>,
+    mut commands: Commands,
+    map: Res<Map>,
+) {
+    for event in events.iter() {
+        let size = Vec2::new(TILE_SIZE, TILE_SIZE);
+        let map_size = MapSize { width: 1, height: 1 };
+        let rect = map_to_screen(&event.0, &map_size, &map);
+        // FIXME: make better Z defaults and share them.
+        let pos = Vec3::new(rect.x, rect.y, 0.1);
+
+        let sprite = SpriteBundle {
+            sprite: Sprite {
+                custom_size: Some(size),
+                ..default()
+            },
+            texture: textures.teapot.clone(),
+            transform: Transform::from_translation(pos),
+            ..default()
+        };
+
+        let movable = Movable {
+            size: Vec2::new(rect.w, rect.h),
+            ..default()
+        };
+        let sized = HasSize {
+            size: map_size,
+        };
+
+        commands.spawn((
+            TeaPot::default(),
+            Item,
+            Interactable {
+                highlight: Color::rgb(1., 1., 1.),
+                message: "Press X to collect".to_string(),
+                ..default()
+            },
+            movable,
+            sized,
+            sprite,
         ));
     }
 }
