@@ -162,7 +162,7 @@ fn run_customer(
 
             let mut rng = rand::thread_rng();
             let door_entity = doors.iter().choose(&mut rng).unwrap();
-            commands.entity(entity).insert(PathfindTarget::new(door_entity, false));
+            commands.entity(entity).insert(PathfindTarget::new(door_entity, true));
         }
     }
 }
@@ -240,11 +240,11 @@ fn spawn_customer_by_door(
     let size = MapSize { width: 1, height: 1 };
     for _event in events.iter() {
         let (transform, sized) = doors.iter().next().unwrap();
-        let mut door_pos = transform_to_map_pos(&transform, &map, &sized.size);
-        door_pos.x += 1;
+        let door_pos = transform_to_map_pos(&transform, &map, &sized.size);
         let screen_rect = map_to_screen(&door_pos, &size, &map);
 
-        let z = 0.1;
+        let mut translate = transform.translation.clone();
+        translate.z = 0.9;
         let screen_size = Vec2::new(screen_rect.w, screen_rect.h);
         let movable = Movable {
             speed: Vec2::ZERO,
@@ -253,8 +253,7 @@ fn spawn_customer_by_door(
             subtile_max: None,
         };
         let sized = HasSize { size };
-        let pos = Vec3::new(screen_rect.x, screen_rect.y, z);
-        let transform = Transform::from_translation(pos);
+        let transform = Transform::from_translation(translate);
 
         let sprite = SpriteSheetBundle {
             texture_atlas: texture.0.clone(),

@@ -211,7 +211,7 @@ pub fn setup(
 
                     match kind.as_str() {
                         "door" => {
-                            commands.spawn((Door, movable, sized, transform));
+                            commands.spawn((Door, sized, transform));
                         }
                         "catbed" => {
                             commands.spawn((CatBed, sized, transform));
