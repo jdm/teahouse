@@ -3,21 +3,35 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "",
+    "activeFile": "teahouse.tmx",
     "expandedProjectPaths": [
     ],
     "fileStates": {
         "interior.tsx": {
-            "dynamicWrapping": false
+            "dynamicWrapping": false,
+            "scaleInDock": 1.0079,
+            "scaleInEditor": 1
+        },
+        "teahouse.tmx": {
+            "scale": 0.6773,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 524.87819282445,
+                "y": 271.6669127417688
+            }
         }
     },
     "last.imagePath": "/Users/jdm/src/teahouse/assets",
     "map.lastUsedFormat": "tmx",
     "openFiles": [
+        "teahouse.tmx",
+        "interior.tsx"
     ],
     "project": "map.tiled-project",
     "property.type": "string",
     "recentFiles": [
+        "interior.tsx",
+        "teahouse.tmx"
     ],
     "tileset.lastUsedFormat": "tsx"
 }

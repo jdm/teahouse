@@ -22,6 +22,7 @@ pub struct TextureResources {
     pub atlas: Handle<TextureAtlas>,
     pub interior_atlas: Handle<TextureAtlas>,
     pub frame_data: Vec<AnimData>,
+    pub teapot: Handle<Image>,
 }
 
 #[derive(Component, Deref, DerefMut)]

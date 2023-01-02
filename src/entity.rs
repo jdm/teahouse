@@ -209,6 +209,16 @@ fn spawn_sprite_inner(
             ));
         }
         EntityType::TeaPot => {
+            let sprite = SpriteBundle {
+                sprite: Sprite {
+                    custom_size: Some(size),
+                    ..default()
+                },
+                texture: textures.unwrap().teapot.clone(),
+                transform: Transform::from_translation(pos.extend(z)),
+                ..default()
+            };
+
             commands.spawn((
                 TeaPot::default(),
                 Item(EntityType::TeaPot),
@@ -338,6 +348,8 @@ pub fn setup(
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
+    let teapot_handle = asset_server.load("teapot.png");
+
     let texture_handle = asset_server.load("cat.png");
     let texture_atlas =
         TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 5, None, None);
@@ -351,6 +363,7 @@ pub fn setup(
     let textures = TextureResources {
         atlas: texture_atlas_handle,
         interior_atlas: texture_atlas_handle2,
+        teapot: teapot_handle,
         frame_data: vec![
             AnimData { index: 0, frames: 4, delay: 0.1, },
             AnimData { index: 4, frames: 4, delay: 0.1, },
@@ -473,7 +486,7 @@ pub fn setup(
                             spawn_sprite(EntityType::Player, rect, &mut commands);
                         }
                         "teapot" => {
-                            spawn_sprite(EntityType::TeaPot, rect, &mut commands);
+                            spawn_sprite_inner(EntityType::TeaPot, rect, &mut commands, Some(&textures));
                         }
                         "cat" => {
                             spawn_sprite_inner(EntityType::Cat, rect, &mut commands, Some(&textures));
