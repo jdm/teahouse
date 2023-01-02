@@ -1,10 +1,13 @@
 use bevy::prelude::*;
+use std::collections::HashMap;
+use std::default::Default;
 
 pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app
+            .init_resource::<AtlasAnimationData>()
             .add_system(update_animation_timer)
             .add_system(animate_sprite);
     }
@@ -16,14 +19,14 @@ pub struct AnimData {
     pub delay: f32,
 }
 
+#[derive(Resource, Default)]
+pub struct AtlasAnimationData {
+    pub data: HashMap<Handle<TextureAtlas>, Vec<AnimData>>
+}
+
 #[derive(Resource)]
 pub struct TextureResources {
-    // FIXME: generalize to more atlases
-    pub atlas: Handle<TextureAtlas>,
     pub interior_atlas: Handle<TextureAtlas>,
-    pub people: Handle<Image>,
-    pub frame_data: Vec<AnimData>,
-    pub teapot: Handle<Image>,
 }
 
 #[derive(Component, Deref, DerefMut)]
@@ -46,12 +49,18 @@ impl AnimationData {
 }
 
 fn update_animation_timer(
-    texture_resources: Res<TextureResources>,
-    mut query: Query<(Entity, &AnimationData, &mut TextureAtlasSprite), Changed<AnimationData>>,
+    atlas_anim_data: Res<AtlasAnimationData>,
+    mut query: Query<(
+        Entity,
+        &AnimationData,
+        &mut TextureAtlasSprite,
+        &Handle<TextureAtlas>
+    ), Changed<AnimationData>>,
     mut commands: Commands,
 ) {
-    for (entity, data, mut sprite) in &mut query {
-        let anim_data = &texture_resources.frame_data[data.current_animation];
+    for (entity, data, mut sprite, handle) in &mut query {
+        let atlas_data = &atlas_anim_data.data[handle];
+        let anim_data = &atlas_data[data.current_animation];
         commands.entity(entity).insert(
             AnimationTimer(Timer::from_seconds(anim_data.delay, TimerMode::Repeating))
         );
@@ -61,17 +70,19 @@ fn update_animation_timer(
 
 fn animate_sprite(
     time: Res<Time>,
-    texture_resources: Res<TextureResources>,
+    atlas_animation_data: Res<AtlasAnimationData>,
     mut query: Query<(
         &mut AnimationTimer,
         &AnimationData,
         &mut TextureAtlasSprite,
+        &Handle<TextureAtlas>,
     )>,
 ) {
-    for (mut timer, data, mut sprite) in &mut query {
+    for (mut timer, data, mut sprite, handle) in &mut query {
         timer.tick(time.delta());
         if timer.just_finished() {
-            let frames = &texture_resources.frame_data[data.current_animation];
+            let atlas_data = &atlas_animation_data.data[handle];
+            let frames = &atlas_data[data.current_animation];
             sprite.index += 1;
             if sprite.index >= frames.index + frames.frames {
                 sprite.index = frames.index;

@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::utils::Instant;
-use crate::animation::TextureResources;
 use crate::entity::Item;
 use crate::geom::{TILE_SIZE, MapSize, MapPos, HasSize, map_to_screen};
 use crate::interaction::{Interactable, PlayerInteracted, AutoPickUp};
@@ -8,6 +7,7 @@ use crate::map::Map;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::movable::Movable;
 use crate::player::Player;
+use rand::Rng;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -18,6 +18,7 @@ impl Plugin for TeaPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<SpawnTeapotEvent>()
+            .add_startup_system(init_texture)
             .add_system(spawn_teapot)
             .add_system(interact_with_stash)
             .add_system(interact_with_cupboards)
@@ -249,9 +250,20 @@ impl SpawnTeapotEvent {
     }
 }
 
+#[derive(Resource)]
+struct TeapotTexture(Handle<Image>);
+
+fn init_texture(
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+) {
+    let people_handle = asset_server.load("teapot.png");
+    commands.insert_resource(TeapotTexture(people_handle));
+}
+
 fn spawn_teapot(
     mut events: EventReader<SpawnTeapotEvent>,
-    textures: Res<TextureResources>,
+    texture: Res<TeapotTexture>,
     mut commands: Commands,
     map: Res<Map>,
 ) {
@@ -267,7 +279,7 @@ fn spawn_teapot(
                 custom_size: Some(size),
                 ..default()
             },
-            texture: textures.teapot.clone(),
+            texture: texture.0.clone(),
             transform: Transform::from_translation(pos),
             ..default()
         };
@@ -301,4 +313,84 @@ fn spawn_teapot(
             commands.entity(entity).insert(AutoPickUp);
         }
     }
+}
+
+pub fn spawn_cupboard(
+    commands: &mut Commands,
+    movable: Movable,
+    sized: HasSize,
+    transform: Transform,
+) {
+    let mut rng = rand::thread_rng();
+    commands.spawn((
+        Cupboard { teapots: rng.gen_range(4..10) },
+        Interactable {
+            highlight: Color::rgb(1., 1., 1.),
+            message: "Press X to pick up teapot".to_string(),
+            ..default()
+        },
+        movable,
+        sized,
+        transform,
+    ));
+}
+
+pub fn spawn_kettle(
+    commands: &mut Commands,
+    movable: Movable,
+    sized: HasSize,
+    transform: Transform,
+) {
+    commands.spawn((
+        Kettle,
+        Interactable {
+            highlight: Color::rgb(1., 1., 1.),
+            message: "Press X to fill the pot".to_string(),
+            ..default()
+        },
+        movable,
+        sized,
+        transform,
+    ));
+}
+
+pub fn spawn_teastash(
+    commands: &mut Commands,
+    movable: Movable,
+    sized: HasSize,
+    transform: Transform,
+) {
+    let ingredient = Ingredient::generate_random();
+    let mut rng = rand::thread_rng();
+    let amount = rng.gen_range(1..10);
+    commands.spawn((
+        TeaStash { ingredient, amount },
+        Interactable {
+            highlight: Color::rgb(1., 1., 1.),
+            message: format!("Press X to pick up {:?}", ingredient),
+            ..default()
+        },
+        movable,
+        sized,
+        transform,
+    ));
+}
+
+pub fn spawn_sink(
+    commands: &mut Commands,
+    movable: Movable,
+    sized: HasSize,
+    transform: Transform,
+) {
+    commands.spawn((
+        Sink,
+        Interactable {
+            highlight: Color::rgb(1., 1., 1.),
+            message: "Press X to clean and put away pot.".to_owned(),
+            ..default()
+        },
+        movable,
+        sized,
+        transform,
+    ));
 }

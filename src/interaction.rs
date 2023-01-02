@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
-use crate::entity::{SPEED, Item, Facing, FacingDirection};
+use crate::entity::{Item, Facing, FacingDirection};
 use crate::geom::{TILE_SIZE, HasSize};
 use crate::movable::Movable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
-use crate::player::{Holding, Player};
+use crate::player::{Holding, Player, SPEED};
 
 pub struct InteractionPlugin;
 
@@ -46,9 +46,6 @@ impl Default for Interactable {
         }
     }
 }
-
-#[derive(Component)]
-pub struct DropZone;
 
 #[derive(Component)]
 pub struct AutoPickUp;

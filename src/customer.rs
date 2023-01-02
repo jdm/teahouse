@@ -1,13 +1,11 @@
 use bevy::prelude::*;
 use crate::GameState;
-use crate::animation::TextureResources;
 use crate::dialog::show_message_box;
 use crate::entity::{
-    Chair, Door, Reaction, EntityType, Paused, Affection, Facing, FacingDirection,
-    Prop, spawn_sprite,
+    Chair, Door, Reaction, Paused, Affection, Facing, FacingDirection, Prop
 };
-use crate::geom::{MapSize, map_to_screen, transform_to_map_pos, HasSize};
-use crate::interaction::{PlayerInteracted, TransferHeldEntity, DropHeldEntity};
+use crate::geom::{MapSize, map_to_screen, transform_to_map_pos, HasSize, TILE_SIZE};
+use crate::interaction::{PlayerInteracted, TransferHeldEntity, DropHeldEntity, Interactable};
 use crate::map::Map;
 use crate::movable::Movable;
 use crate::pathfinding::PathfindTarget;
@@ -20,9 +18,12 @@ use std::time::Duration;
 
 pub struct CustomerPlugin;
 
+const SPEED: f32 = 40.0;
+
 impl Plugin for CustomerPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_startup_system(init_texture)
             .add_system(run_customer)
             .add_system(customer_spawner)
             .add_system(spawn_customer_by_door)
@@ -206,19 +207,56 @@ fn spawn_customer_by_door(
     mut events: EventReader<NewCustomerEvent>,
     mut commands: Commands,
     map: Res<Map>,
-    textures: Res<TextureResources>,
+    texture: Res<CustomerTexture>,
 ) {
+    // FIXME: assume customers are all 1x1 entities.
+    let size = MapSize { width: 1, height: 1 };
     for _event in events.iter() {
         let (transform, sized) = doors.iter().next().unwrap();
         let mut door_pos = transform_to_map_pos(&transform, &map, &sized.size);
         door_pos.x += 1;
-        // FIXME: assume customers are all 1x1 entities.
-        let screen_rect = map_to_screen(&door_pos, &MapSize { width: 1, height: 1 }, &map);
+        let screen_rect = map_to_screen(&door_pos, &size, &map);
 
         let mut rng = rand::thread_rng();
         let color = Color::rgb(rng.gen(), rng.gen(), rng.gen());
 
-        spawn_sprite(EntityType::Customer(color), screen_rect, &mut commands, &textures);
+        let z = 0.1;
+        let screen_size = Vec2::new(screen_rect.w, screen_rect.h);
+        let movable = Movable {
+            speed: Vec2::ZERO,
+            size: screen_size,
+            entity_speed: SPEED,
+            subtile_max: None,
+        };
+        let sized = HasSize { size };
+        let pos = Vec3::new(screen_rect.x, screen_rect.y, z);
+        let transform = Transform::from_translation(pos);
+
+        let sprite = SpriteBundle {
+            sprite: Sprite {
+                color,
+                custom_size: Some(screen_size),
+                rect: Some(Rect::new(TILE_SIZE, 0., TILE_SIZE * 2., TILE_SIZE)),
+                ..default()
+            },
+            texture: texture.0.clone(),
+            transform,
+            ..default()
+        };
+
+        commands.spawn((
+            Customer::default(),
+            Affection::default(),
+            Facing(FacingDirection::Down),
+            Interactable {
+                highlight: Color::rgb(1., 1., 1.),
+                message: "Press X to talk".to_string(),
+                ..default()
+            },
+            movable,
+            sized,
+            sprite,
+        ));
     }
 }
 
@@ -272,4 +310,15 @@ fn interact_with_customers(
         show_message_box(customer_entity, &mut commands, conversation(), asset_server);
         return;
     }
+}
+
+#[derive(Resource)]
+struct CustomerTexture(Handle<Image>);
+
+fn init_texture(
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+) {
+    let people_handle = asset_server.load("people.png");
+    commands.insert_resource(CustomerTexture(people_handle));
 }

@@ -1,14 +1,11 @@
 use bevy::prelude::*;
-use crate::animation::{AnimationData, AnimData, TextureResources};
-use crate::cat::*;
-use crate::customer::Customer;
-use crate::geom::{HasSize, MapSize, TILE_SIZE, ScreenRect, map_to_screen, MapPos};
-use crate::interaction::{DropZone, Interactable};
+use crate::animation::TextureResources;
+use crate::cat::{CatBed, SpawnCatEvent};
+use crate::geom::{HasSize, MapSize, TILE_SIZE, map_to_screen, MapPos};
 use crate::map::Map;
 use crate::movable::Movable;
-use crate::player::Player;
-use crate::tea::{Ingredient, TeaStash, Kettle, Cupboard, Sink, SpawnTeapotEvent};
-use rand::Rng;
+use crate::player::SpawnPlayerEvent;
+use crate::tea::{SpawnTeapotEvent, spawn_cupboard, spawn_kettle, spawn_teastash, spawn_sink};
 use std::default::Default;
 use tiled::{Loader, LayerType, PropertyValue, ObjectShape};
 
@@ -116,158 +113,22 @@ pub struct Door;
 #[derive(Component)]
 pub struct Chair;
 
-#[allow(dead_code)]
-#[derive(Clone, PartialEq, Debug)]
-pub enum EntityType {
-    Customer(Color),
-    Player,
-    Cat,
-}
-
-pub const CAT_SPEED: f32 = 25.0;
-pub const CUSTOMER_SPEED: f32 = 40.0;
-pub const SPEED: f32 = 150.0;
-
-pub fn spawn_sprite(
-    entity: EntityType,
-    rect: ScreenRect,
-    commands: &mut Commands,
-    textures: &TextureResources,
-) {
-    let pos = Vec2::new(rect.x, rect.y);
-    let size = Vec2::new(rect.w, rect.h);
-    let speed = match entity {
-        EntityType::Player => SPEED,
-        EntityType::Customer(..) => CUSTOMER_SPEED,
-        EntityType::Cat => CAT_SPEED,
-    };
-    let z = 0.1;
-    let movable = Movable {
-        speed: Vec2::ZERO,
-        size: size,
-        entity_speed: speed,
-        subtile_max: None,
-    };
-    let sized = HasSize {
-        size: MapSize {
-            width: (rect.w / TILE_SIZE) as usize,
-            height: (rect.h / TILE_SIZE) as usize,
-        }
-    };
-    let transform = Transform::from_translation(pos.extend(z));
-    match entity {
-        EntityType::Player => {
-            let sprite = SpriteBundle {
-                sprite: Sprite {
-                    custom_size: Some(size),
-                    rect: Some(Rect::new(0., 0., TILE_SIZE, TILE_SIZE)),
-                    ..default()
-                },
-                texture: textures.people.clone(),
-                transform,
-                ..default()
-            };
-
-            commands.spawn((
-                Player::default(),
-                Facing(FacingDirection::Down),
-                movable,
-                sized,
-                sprite,
-            ))
-                .with_children(|parent| {
-                    let mut bundle = Camera2dBundle::default();
-                    bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
-                    parent.spawn(bundle);
-                });
-        }
-        EntityType::Customer(color) => {
-            let sprite = SpriteBundle {
-                sprite: Sprite {
-                    color,
-                    custom_size: Some(size),
-                    rect: Some(Rect::new(TILE_SIZE, 0., TILE_SIZE * 2., TILE_SIZE)),
-                    ..default()
-                },
-                texture: textures.people.clone(),
-                transform: Transform::from_translation(pos.extend(z)),
-                ..default()
-            };
-
-            commands.spawn((
-                Customer::default(),
-                Affection::default(),
-                Facing(FacingDirection::Down),
-                Interactable {
-                    highlight: Color::rgb(1., 1., 1.),
-                    message: "Press X to talk".to_string(),
-                    ..default()
-                },
-                movable,
-                sized,
-                sprite,
-            ));
-        }
-        EntityType::Cat => {
-            let sprite = SpriteSheetBundle {
-                texture_atlas: textures.atlas.clone(),
-                transform: Transform::from_translation(pos.extend(z)),
-                ..default()
-            };
-
-            commands.spawn((
-                Cat::default(),
-                AnimationData { current_animation: CatAnimationState::Sleep.into() },
-                Affection::default(),
-                Facing(FacingDirection::Down),
-                crate::cat::State::default(),
-                Interactable {
-                    highlight: Color::rgb(1., 1., 1.),
-                    message: "Press X to pet the cat".to_string(),
-                    ..default()
-                },
-                movable,
-                sized,
-                sprite,
-            ));
-        }
-    }
-}
-
 pub fn setup(
     mut commands: Commands,
     map2: Res<Map>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
+    mut player_spawner: EventWriter<SpawnPlayerEvent>,
+    mut cat_spawner: EventWriter<SpawnCatEvent>,
 ) {
-    let people_handle = asset_server.load("people.png");
-
-    let teapot_handle = asset_server.load("teapot.png");
-
-    let texture_handle = asset_server.load("cat.png");
-    let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 5, None, None);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
-
     let texture_handle2 = asset_server.load("interiors.png");
     let texture_atlas2 =
         TextureAtlas::from_grid(texture_handle2, Vec2::new(TILE_SIZE, TILE_SIZE), 48, 16, None, None);
     let texture_atlas_handle2 = texture_atlases.add(texture_atlas2);
 
     let textures = TextureResources {
-        atlas: texture_atlas_handle,
         interior_atlas: texture_atlas_handle2,
-        people: people_handle,
-        teapot: teapot_handle,
-        frame_data: vec![
-            AnimData { index: 0, frames: 4, delay: 0.1, },
-            AnimData { index: 4, frames: 4, delay: 0.1, },
-            AnimData { index: 8, frames: 4, delay: 0.1, },
-            AnimData { index: 12, frames: 4, delay: 0.1, },
-            AnimData { index: 16, frames: 1, delay: 0.1, },
-            AnimData { index: 17, frames: 2, delay: 0.8, },
-        ],
     };
 
     let mut loader = Loader::new();
@@ -315,12 +176,10 @@ pub fn setup(
 
             LayerType::ObjectLayer(layer) => {
                 for object in layer.objects() {
-                    println!("{:?}", *object);
                     let kind = match object.properties.get("kind") {
                         Some(PropertyValue::StringValue(kind)) => kind,
                         _ => continue,
                     };
-                    println!("{:?}", kind);
                     let (width, height) = match object.shape {
                         ObjectShape::Rect { width, height } => (width, height),
                         _ => continue,
@@ -350,73 +209,28 @@ pub fn setup(
                             commands.spawn((CatBed, sized, transform));
                         }
                         "kettle" => {
-                            commands.spawn((
-                                Kettle,
-                                Interactable {
-                                    highlight: Color::rgb(1., 1., 1.),
-                                    message: "Press X to fill the pot".to_string(),
-                                    ..default()
-                                },
-                                movable,
-                                sized,
-                                transform,
-                            ));
+                            spawn_kettle(&mut commands, movable, sized, transform);
                         }
                         "teastash" => {
-                            let ingredient = Ingredient::generate_random();
-                            let mut rng = rand::thread_rng();
-                            let amount = rng.gen_range(1..10);
-                            commands.spawn((
-                                TeaStash { ingredient, amount },
-                                Interactable {
-                                    highlight: Color::rgb(1., 1., 1.),
-                                    message: format!("Press X to pick up {:?}", ingredient),
-                                    ..default()
-                                },
-                                movable,
-                                sized,
-                                transform,
-                            ));
+                            spawn_teastash(&mut commands, movable, sized, transform);
                         }
                         "sink" => {
-                            commands.spawn((
-                                Sink,
-                                DropZone,
-                                Interactable {
-                                    highlight: Color::rgb(1., 1., 1.),
-                                    message: "Press X to clean and put away pot.".to_owned(),
-                                    ..default()
-                                },
-                                movable,
-                                sized,
-                                transform,
-                            ));
+                            spawn_sink(&mut commands, movable, sized, transform);
                         }
                         "player" => {
-                            spawn_sprite(EntityType::Player, rect, &mut commands, &textures);
+                            player_spawner.send(SpawnPlayerEvent(pos));
                         }
                         "teapot" => {
                             teapot_spawner.send(SpawnTeapotEvent::at(pos));
                         }
                         "cat" => {
-                            spawn_sprite(EntityType::Cat, rect, &mut commands, &textures);
+                            cat_spawner.send(SpawnCatEvent(pos));
                         }
                         "chair" => {
                             commands.spawn((Chair, sized, transform));
                         }
                         "cupboard" => {
-                            let mut rng = rand::thread_rng();
-                            commands.spawn((
-                                Cupboard { teapots: rng.gen_range(4..10) },
-                                Interactable {
-                                    highlight: Color::rgb(1., 1., 1.),
-                                    message: "Press X to pick up teapot".to_string(),
-                                    ..default()
-                                },
-                                movable,
-                                sized,
-                                transform,
-                            ));
+                            spawn_cupboard(&mut commands, movable, sized, transform);
                         }
                         s => warn!("Ignoring unknown object kind: {}", s),
                     }

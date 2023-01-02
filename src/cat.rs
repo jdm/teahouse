@@ -1,20 +1,28 @@
 use bevy::prelude::*;
-use crate::animation::AnimationData;
+use crate::animation::{AnimData, AnimationData, AtlasAnimationData};
 use crate::customer::Customer;
 use crate::entity::{Affection, RelationshipStatus, Reaction, Facing, FacingDirection};
-use crate::interaction::PlayerInteracted;
+use crate::geom::{TILE_SIZE, HasSize, MapSize, MapPos, map_to_screen};
+use crate::interaction::{Interactable, PlayerInteracted};
+use crate::map::Map;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
+use crate::movable::Movable;
 use crate::pathfinding::{PathfindTarget, stop_current_pathfinding};
 use crate::player::Player;
 use rand::Rng;
 use rand::seq::IteratorRandom;
 use std::time::Duration;
 
+const CAT_SPEED: f32 = 25.0;
+
 pub struct CatPlugin;
 
 impl Plugin for CatPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_startup_system(init_texture)
+            .add_event::<SpawnCatEvent>()
+            .add_system(spawn_cat)
             .add_system(interact_with_cat)
             .add_system(run_sleep)
             .add_system(run_sit)
@@ -218,5 +226,80 @@ fn interact_with_cat(
         ));
 
         affection.react(reaction);
+    }
+}
+
+#[derive(Resource)]
+struct CatTexture(Handle<TextureAtlas>);
+
+fn init_texture(
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut animation_data: ResMut<AtlasAnimationData>,
+    mut commands: Commands,
+) {
+    let texture_handle = asset_server.load("cat.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 5, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    animation_data.data.insert(
+        texture_atlas_handle.clone(),
+        vec![
+            AnimData { index: 0, frames: 4, delay: 0.1, },
+            AnimData { index: 4, frames: 4, delay: 0.1, },
+            AnimData { index: 8, frames: 4, delay: 0.1, },
+            AnimData { index: 12, frames: 4, delay: 0.1, },
+            AnimData { index: 16, frames: 1, delay: 0.1, },
+            AnimData { index: 17, frames: 2, delay: 0.8, },
+        ],
+    );
+    commands.insert_resource(CatTexture(texture_atlas_handle));
+}
+
+pub struct SpawnCatEvent(pub MapPos);
+
+fn spawn_cat(
+    mut events: EventReader<SpawnCatEvent>,
+    texture: Res<CatTexture>,
+    mut commands: Commands,
+    map: Res<Map>,
+) {
+    for event in events.iter() {
+        let map_size = MapSize { width: 1, height: 1 };
+        let rect = map_to_screen(&event.0, &map_size, &map);
+        // FIXME: make better Z defaults and share them.
+        let pos = Vec3::new(rect.x, rect.y, 0.9);
+        let transform = Transform::from_translation(pos);
+
+        let sprite = SpriteSheetBundle {
+            texture_atlas: texture.0.clone(),
+            transform,
+            ..default()
+        };
+
+        let movable = Movable {
+            size: Vec2::new(rect.w, rect.h),
+            entity_speed: CAT_SPEED,
+            ..default()
+        };
+        let sized = HasSize {
+            size: map_size,
+        };
+
+        commands.spawn((
+            Cat::default(),
+            AnimationData { current_animation: CatAnimationState::Sleep.into() },
+            Affection::default(),
+            Facing(FacingDirection::Down),
+            State::default(),
+            Interactable {
+                highlight: Color::rgb(1., 1., 1.),
+                message: "Press X to pet the cat".to_string(),
+                ..default()
+            },
+            movable,
+            sized,
+            sprite,
+        ));
     }
 }
