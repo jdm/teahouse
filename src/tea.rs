@@ -79,14 +79,16 @@ fn interact_with_stash(
             Err(_) => continue,
         };
 
-        stash.amount -= 1;
-        let amount = player.carrying.entry(stash.ingredient).or_insert(0);
-        *amount += 1;
-        status_events.send(StatusEvent::timed_message(
-            event.player_entity,
-            format!("You take a little {:?} ({} remaining)", stash.ingredient, stash.amount),
-            DEFAULT_EXPIRY,
-        ));
+        if stash.amount > 0 {
+            stash.amount -= 1;
+            let amount = player.carrying.entry(stash.ingredient).or_insert(0);
+            *amount += 1;
+            status_events.send(StatusEvent::timed_message(
+                event.player_entity,
+                format!("You take a little {:?} ({} remaining)", stash.ingredient, stash.amount),
+                DEFAULT_EXPIRY,
+            ));
+        }
     }
 }
 
