@@ -33,6 +33,14 @@ impl FacingDirection {
         }
     }
 
+    pub fn to_translation(&self) -> Vec2 {
+        let offset = self.offset();
+        Vec2::new(
+            offset.0 as f32 * TILE_SIZE,
+            -offset.1 as f32 * TILE_SIZE,
+        )
+    }
+
     pub fn adjust_pos(&self, pos: &MapPos) -> MapPos {
         let offset = self.offset();
         MapPos {
@@ -42,7 +50,7 @@ impl FacingDirection {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Deref, DerefMut)]
 pub struct Facing(pub FacingDirection);
 
 #[derive(Component, Default)]

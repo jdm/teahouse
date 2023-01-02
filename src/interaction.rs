@@ -293,15 +293,5 @@ fn transfer(
             entity: held_entity,
         });
         commands.entity(event.holder).remove::<Holding>();
-        let holder_facing = facing.get(event.receiver).unwrap();
-        let offset = holder_facing.0.offset();
-        let mut transform = held_transform.get_mut(held_entity).unwrap();
-        //FIXME: awkward. maybe a system for automatically setting transform of new
-        //       held entities? also setting the sprite direction based on facing dir?
-        transform.translation = Vec3::new(
-            offset.0 as f32 * TILE_SIZE,
-            offset.1 as f32 * TILE_SIZE,
-            transform.translation.z
-        );
     }
 }
