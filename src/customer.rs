@@ -4,7 +4,7 @@ use crate::animation::TextureResources;
 use crate::dialog::show_message_box;
 use crate::entity::{
     Chair, Door, Reaction, EntityType, Paused, Affection, Facing, FacingDirection,
-    Prop, spawn_sprite_inner,
+    Prop, spawn_sprite,
 };
 use crate::geom::{MapSize, map_to_screen, transform_to_map_pos, HasSize};
 use crate::interaction::{PlayerInteracted, TransferHeldEntity, DropHeldEntity};
@@ -218,7 +218,7 @@ fn spawn_customer_by_door(
         let mut rng = rand::thread_rng();
         let color = Color::rgb(rng.gen(), rng.gen(), rng.gen());
 
-        spawn_sprite_inner(EntityType::Customer(color), screen_rect, &mut commands, Some(&textures));
+        spawn_sprite(EntityType::Customer(color), screen_rect, &mut commands, &textures);
     }
 }
 
