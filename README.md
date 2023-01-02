@@ -7,3 +7,4 @@ TODO:
 * player inventory and active item
 * pathfinding support for multi-tile entities
 * give up on pathfinding if it's taking too long (max # of attempts?)
+* persistent customer relationships
