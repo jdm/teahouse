@@ -279,8 +279,6 @@ pub struct TransferHeldEntity {
 fn transfer(
     mut events: EventReader<TransferHeldEntity>,
     holder: Query<&Holding>,
-    facing: Query<&Facing>,
-    mut held_transform: Query<&mut Transform>,
     mut commands: Commands,
 ) {
     for event in events.iter() {

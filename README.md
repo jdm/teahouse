@@ -5,6 +5,5 @@ TODO:
 * make z-ordering occur based on y position sorting
   * system that runs each frame and sets z property based on tile position of each movable?
 * player inventory and active item
-* generalize facing direction animation state updates
 * pathfinding support for multi-tile entities
 * give up on pathfinding if it's taking too long (max # of attempts?)

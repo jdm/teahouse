@@ -27,8 +27,7 @@ impl Plugin for CatPlugin {
             .add_system(run_sleep)
             .add_system(run_sit)
             .add_system(run_follow)
-            .add_system(run_bed)
-            .add_system(update_animation_state);
+            .add_system(run_bed);
     }
 }
 
@@ -153,7 +152,7 @@ fn run_bed(
 }
 
 #[derive(Component, Deref, DerefMut)]
-pub struct State<T>(pub T);
+struct State<T>(pub T);
 
 impl Default for State<Sleeping> {
     fn default() -> Self {
@@ -187,25 +186,6 @@ fn petting_reaction(is_sleeping: bool, affection: &Affection) -> (Reaction, Stri
         RelationshipStatus::Crushing => "The cat purs and headbutts your hand.",
     }.to_string();
     (reaction, message)
-}
-
-fn update_animation_state(
-    mut cat_animation: Query<(&mut AnimationData, &Facing), (With<Cat>, Changed<Facing>)>,
-) {
-    if cat_animation.is_empty() {
-        return;
-    }
-
-    let (mut data, facing) = cat_animation.single_mut();
-    let state = match facing.0 {
-        FacingDirection::Up => CatAnimationState::WalkUp,
-        FacingDirection::Down => CatAnimationState::WalkDown,
-        FacingDirection::Right => CatAnimationState::WalkRight,
-        FacingDirection::Left => CatAnimationState::WalkLeft,
-    };
-    if !data.is_current(state) {
-        data.set_current(state);
-    }
 }
 
 fn interact_with_cat(
@@ -288,7 +268,10 @@ fn spawn_cat(
 
         commands.spawn((
             Cat::default(),
-            AnimationData { current_animation: CatAnimationState::Sleep.into() },
+            AnimationData {
+                current_animation: CatAnimationState::Sleep.into(),
+                facing_conversion,
+            },
             Affection::default(),
             Facing(FacingDirection::Down),
             State::default(),
@@ -302,4 +285,13 @@ fn spawn_cat(
             sprite,
         ));
     }
+}
+
+fn facing_conversion(facing: FacingDirection) -> usize {
+    match facing {
+        FacingDirection::Up => CatAnimationState::WalkUp,
+        FacingDirection::Down => CatAnimationState::WalkDown,
+        FacingDirection::Right => CatAnimationState::WalkRight,
+        FacingDirection::Left => CatAnimationState::WalkLeft,
+    }.into()
 }

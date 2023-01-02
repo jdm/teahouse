@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::entity::{Facing, FacingDirection};
 use std::collections::HashMap;
 use std::default::Default;
 
@@ -9,7 +10,8 @@ impl Plugin for AnimationPlugin {
         app
             .init_resource::<AtlasAnimationData>()
             .add_system(update_animation_timer)
-            .add_system(animate_sprite);
+            .add_system(animate_sprite)
+            .add_system(update_facing_animation);
     }
 }
 
@@ -35,6 +37,7 @@ pub struct AnimationTimer(pub Timer);
 #[derive(Component)]
 pub struct AnimationData {
     pub current_animation: usize,
+    pub facing_conversion: fn(FacingDirection) -> usize,
 }
 
 impl AnimationData {
@@ -87,6 +90,17 @@ fn animate_sprite(
             if sprite.index >= frames.index + frames.frames {
                 sprite.index = frames.index;
             }
+        }
+    }
+}
+
+fn update_facing_animation(
+    mut animation: Query<(&mut AnimationData, &Facing), Changed<Facing>>,
+) {
+    for (mut data, facing) in &mut animation {
+        let state = (data.facing_conversion)(facing.0);
+        if !data.is_current(state) {
+            data.set_current(state);
         }
     }
 }
