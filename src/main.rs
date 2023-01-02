@@ -7,6 +7,7 @@ use crate::dialog::DialogPlugin;
 use crate::entity::setup;
 use crate::interaction::InteractionPlugin;
 use crate::map::MapPlugin;
+use crate::menu::MenuPlugin;
 use crate::message_line::MessageLinePlugin;
 use crate::movable::MovablePlugin;
 use crate::pathfinding::PathfindingPlugin;
@@ -22,6 +23,7 @@ mod entity;
 mod geom;
 mod interaction;
 mod map;
+mod menu;
 mod message_line;
 mod movable;
 mod pathfinding;
@@ -50,6 +52,7 @@ fn main() {
         .add_plugin(MovablePlugin)
         .add_plugin(MapPlugin)
         .add_plugin(PlayerPlugin)
+        .add_plugin(MenuPlugin)
         .add_state(GameState::InGame)
         .add_startup_system(setup)
         .add_system(bevy::window::close_on_esc);

@@ -4,6 +4,7 @@ use crate::cat::{CatBed, SpawnCatEvent};
 use crate::geom::{HasSize, MapSize, TILE_SIZE, map_to_screen, MapPos};
 use crate::map::Map;
 use crate::movable::Movable;
+use crate::menu::StartingIngredients;
 use crate::player::SpawnPlayerEvent;
 use crate::tea::{SpawnTeapotEvent, spawn_cupboard, spawn_kettle, spawn_teastash, spawn_sink};
 use std::default::Default;
@@ -121,6 +122,8 @@ pub struct Door;
 #[derive(Component)]
 pub struct Chair;
 
+const STARTING_INGREDIENT_AMOUNT: u32 = 50;
+
 pub fn setup(
     mut commands: Commands,
     map2: Res<Map>,
@@ -129,6 +132,7 @@ pub fn setup(
     mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
     mut player_spawner: EventWriter<SpawnPlayerEvent>,
     mut cat_spawner: EventWriter<SpawnCatEvent>,
+    ingredients: Res<StartingIngredients>,
 ) {
     let texture_handle2 = asset_server.load("interiors.png");
     let texture_atlas2 =
@@ -138,6 +142,8 @@ pub fn setup(
     let textures = TextureResources {
         interior_atlas: texture_atlas_handle2,
     };
+
+    let mut stashes_spawned = 0;
 
     let mut loader = Loader::new();
     let map = loader.load_tmx_map("assets/teahouse.tmx").unwrap();
@@ -220,7 +226,15 @@ pub fn setup(
                             spawn_kettle(&mut commands, movable, sized, transform);
                         }
                         "teastash" => {
-                            spawn_teastash(&mut commands, movable, sized, transform);
+                            spawn_teastash(
+                                &mut commands,
+                                movable,
+                                sized,
+                                transform,
+                                ingredients.ingredients[stashes_spawned],
+                                STARTING_INGREDIENT_AMOUNT,
+                            );
+                            stashes_spawned += 1;
                         }
                         "sink" => {
                             spawn_sink(&mut commands, movable, sized, transform);

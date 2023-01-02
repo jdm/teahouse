@@ -359,10 +359,9 @@ pub fn spawn_teastash(
     movable: Movable,
     sized: HasSize,
     transform: Transform,
+    ingredient: Ingredient,
+    amount: u32,
 ) {
-    let ingredient = Ingredient::generate_random();
-    let mut rng = rand::thread_rng();
-    let amount = rng.gen_range(1..10);
     commands.spawn((
         TeaStash { ingredient, amount },
         Interactable {
