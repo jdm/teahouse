@@ -32,7 +32,7 @@ pub fn create_debug_path(
 ) {
     for point in path {
         let next_screen_rect = map_to_screen(&point, &MapSize { width: 1, height: 1 }, &map);
-        let next_screen_point = Vec3::new(next_screen_rect.x, next_screen_rect.y, 0.);
+        let next_screen_point = Vec3::new(next_screen_rect.x, next_screen_rect.y, 0.5);
         commands.spawn((
             DebugTile { for_entity: entity },
             SpriteBundle {

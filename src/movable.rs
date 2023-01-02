@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::entity::{Facing, FacingDirection, Paused};
 use crate::geom::{
-    MapPos, MapSize, HasSize, transform_to_map_pos, map_to_screen, screen_to_map_pos_inner
+    MapPos, MapSize, HasSize, transform_to_map_pos, map_to_screen,
 };
 use crate::map::Map;
 
@@ -127,61 +127,9 @@ pub struct Movable {
     pub subtile_max: Option<Vec2>,
 }
 
-struct MovingEntity {
-    speed: Vec2,
-    translation: Vec3,
-    size: MapSize,
-}
-
-fn entities_will_collide(first: &MovingEntity, second: &MovingEntity, time_delta: f32, map_size: &MapSize) -> bool {
-    let entities_intersecting =
-        |first_point: &MapPos, first_size: &MapSize, second_point: &MapPos, second_size: &MapSize| {
-            first_point.x + first_size.width >= second_point.x &&
-                first_point.x < second_point.x + second_size.width &&
-                first_point.y + first_size.height >= second_point.y &&
-                first_point.y < second_point.y + second_size.height
-        };
-
-    let base_pos1 = screen_to_map_pos_inner(first.translation.x, first.translation.y, &map_size, &first.size);
-    let base_pos2 = screen_to_map_pos_inner(second.translation.x, second.translation.y, &map_size, &second.size);
-    if base_pos1 == base_pos2 {
-        // Bail out; the entities are already sharing a tile.
-        debug!("bailing out ({:?} and {:?})", first.translation, second.translation);
-        return false;
-    }
-
-    let x1_delta = Vec3::new(first.speed.x, 0., 0.);
-    let adjusted1 = first.translation + x1_delta * time_delta;
-    let moving_tile_pos = screen_to_map_pos_inner(adjusted1.x, adjusted1.y, &map_size, &first.size);
-
-    let x2_delta = Vec3::new(second.speed.x, 0., 0.);
-    let adjusted2 = second.translation + x2_delta * time_delta;
-    let fixed_tile_pos = screen_to_map_pos_inner(adjusted2.x, adjusted2.y, &map_size, &second.size);
-
-    let x_colliding = entities_intersecting(&moving_tile_pos, &first.size, &fixed_tile_pos, &second.size);
-    if x_colliding {
-        debug!("x colliding at {:?} ({:?}) and {:?} ({:?})", moving_tile_pos, adjusted1, fixed_tile_pos, adjusted2);
-    }
-
-    let y1_delta = Vec3::new(0., first.speed.y, 0.);
-    let adjusted1 = first.translation + y1_delta * time_delta;
-    let moving_tile_pos = screen_to_map_pos_inner(adjusted1.x, adjusted1.y, &map_size, &first.size);
-
-    let y2_delta = Vec3::new(0., second.speed.y, 0.);
-    let adjusted2 = second.translation + y2_delta * time_delta;
-    let fixed_tile_pos = screen_to_map_pos_inner(adjusted2.x, adjusted2.y, &map_size, &second.size);
-
-    let y_colliding = entities_intersecting(&moving_tile_pos, &first.size, &fixed_tile_pos, &second.size);
-    if y_colliding {
-        debug!("y colliding at {:?} ({:?}) and {:?} ({:?})", moving_tile_pos, adjusted1, fixed_tile_pos, adjusted2);
-    }
-
-    x_colliding || y_colliding
-}
-
 pub fn move_movables(
     mut set: ParamSet<(
-        Query<(Entity, &Movable, &Transform, &HasSize)>,
+        Query<(Entity, &Movable, &Transform)>,
         Query<&mut Movable>,
         Query<(&Movable, &mut Transform), Without<Paused>>,
     )>,
@@ -192,35 +140,31 @@ pub fn move_movables(
 
     let mut colliding_entities = vec![];
     let q = set.p0();
-    for (moving, movable, transform, sized) in &q {
-        for (fixed, _movable2, transform2, sized2) in &q {
+    for (moving, movable, transform) in &q {
+        // If one of the entities is not moving, the collision check will still take
+        // place from the perspective of the entity that _is_ moving. If neither entity
+        // is moving, we can skip the check entirely.
+        if movable.speed == Vec2::ZERO {
+            continue;
+        }
+
+        for (fixed, movable2, transform2) in &q {
             if moving == fixed {
                 continue;
             }
 
-            // If one of the entities is not moving, the collision check will still take
-            // place from the perspective of the entity that _is_ moving. If neither entity
-            // is moving, we can skip the check entirely.
-            if movable.speed == Vec2::ZERO {
-                continue;
-            }
-
-            let first = MovingEntity {
-                speed: movable.speed,
-                translation: transform.translation,
-                size: sized.size,
-            };
-            let second = MovingEntity {
-                speed: Vec2::ZERO,
-                translation: transform2.translation,
-                size: sized2.size,
-            };
-            let map_size = MapSize { width: map.width, height: map.height };
-            let colliding = entities_will_collide(&first, &second, delta_seconds, &map_size);
+            // FIXME: first check X, then check Y, and reset speed independently.
+            let colliding = bevy::sprite::collide_aabb::collide(
+                transform.translation + movable.speed.extend(0.) * delta_seconds,
+                movable.size * 0.9,
+                transform2.translation + movable2.speed.extend(0.) * delta_seconds,
+                movable2.size * 0.9,
+            ).is_some();
 
             if colliding {
                 debug!("collision for {:?} and {:?}", moving, fixed);
                 colliding_entities.push(moving);
+                break;
             }
         }
     }

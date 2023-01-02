@@ -137,17 +137,17 @@ fn pathfind_to_target(
 
             reset_movable_pos(&mut transform, &mut movable, &sized, &map, current_point);
 
+            for (debug_entity, debug_tile, _) in &debug_tile {
+                if debug_tile.for_entity == entity {
+                    commands.entity(debug_entity).despawn();
+                }
+            }
+
             if let Some(will_stop) = will_stop {
                 commands.entity(entity).remove::<PathfindTarget>();
                 commands.entity(entity).remove::<StopOnCurrentTile>();
                 (will_stop.0)(entity, &mut commands);
                 continue;
-            }
-
-            for (debug_entity, debug_tile, _) in &debug_tile {
-                if debug_tile.for_entity == entity {
-                    commands.entity(debug_entity).despawn();
-                }
             }
 
             let target_point = match target_data.get(&target.target) {

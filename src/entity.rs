@@ -334,7 +334,7 @@ fn spawn_sprite_inner(
 
 pub fn setup(
     mut commands: Commands,
-    map2: ResMut<Map>,
+    map2: Res<Map>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
