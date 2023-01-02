@@ -59,7 +59,10 @@ fn mirror_carried_item(
         return;
     }
     let (held, facing) = held.single();
-    let mut held_sprite = held_sprite.get_mut(held.entity).unwrap();
+    let mut held_sprite = match held_sprite.get_mut(held.entity) {
+        Ok(held) => held,
+        Err(_) => return,
+    };
     match facing.0 {
         FacingDirection::Left | FacingDirection::Up => held_sprite.flip_x = false,
         FacingDirection::Right | FacingDirection::Down => held_sprite.flip_x = true,
