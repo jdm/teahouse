@@ -6,7 +6,6 @@ use crate::geom::{HasSize, MapSize, TILE_SIZE, ScreenRect, map_to_screen, MapPos
 use crate::interaction::{DropZone, Interactable};
 use crate::map::Map;
 use crate::movable::Movable;
-use crate::message_line::{StatusMessage, StatusMessageBundle};
 use crate::player::Player;
 use crate::tea::{Ingredient, TeaStash, Kettle, Cupboard, Sink, SpawnTeapotEvent};
 use rand::Rng;
@@ -428,30 +427,6 @@ pub fn setup(
         }
         z += 0.1;
     }
-
-    commands.spawn(
-        StatusMessageBundle {
-            message: StatusMessage::default(),
-            text: TextBundle::from_section(
-                "",
-                TextStyle {
-                    font: asset_server.load("Lato-Medium.ttf"),
-                    font_size: 25.0,
-                    color: Color::WHITE,
-                },
-            )
-                .with_text_alignment(TextAlignment::TOP_CENTER)
-                .with_style(Style {
-                    position_type: PositionType::Absolute,
-                    position: UiRect {
-                        bottom: Val::Px(5.0),
-                        right: Val::Px(15.0),
-                        ..default()
-                    },
-                    ..default()
-                }),
-        }
-    );
 
     commands.insert_resource(textures);
 }
