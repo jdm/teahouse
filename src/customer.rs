@@ -151,7 +151,7 @@ fn run_customer(
 
             let current_pos = transform_to_map_pos(&transform, &map, &sized.size);
             let nearest = facing.0.adjust_pos(&current_pos);
-            teapot_spawner.send(SpawnTeapotEvent(nearest));
+            teapot_spawner.send(SpawnTeapotEvent::dirty(nearest));
         }
     }
 }

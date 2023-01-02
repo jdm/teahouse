@@ -10,3 +10,4 @@ TODO:
 * generalize facing direction animation state updates
 * split spawn_sprite into events to spawn each kind of entity
 * pathfinding support for multi-tile entities
+* give up on pathfinding if it's taking too long (max # of attempts?)

@@ -15,6 +15,7 @@ impl Plugin for InteractionPlugin {
             .add_system(pick_up_item)
             .add_system(drop_item)
             .add_system(mirror_carried_item)
+            .add_system(auto_pick_up_item)
             .add_event::<PlayerInteracted>()
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
@@ -42,6 +43,13 @@ impl Default for Interactable {
         }
     }
 }
+
+#[derive(Component)]
+pub struct DropZone;
+
+#[derive(Component)]
+pub struct AutoPickUp;
+
 
 fn mirror_carried_item(
     held: Query<(&Holding, &Facing), (With<Player>, Changed<Facing>)>,
@@ -108,6 +116,7 @@ fn highlight_interactable(
 pub struct PlayerInteracted {
     pub player_entity: Entity,
     pub interacted_entity: Entity,
+    pub held_entity: Option<Entity>,
 }
 
 fn drop_item(
@@ -116,6 +125,8 @@ fn drop_item(
     mut held_transform: Query<(&mut Transform, &GlobalTransform, &HasSize)>,
     mut commands: Commands,
     player: Query<Entity, With<Player>>,
+    interactables: Query<(Entity, &Interactable), With<DropZone>>,
+    mut player_interacted_events: EventWriter<PlayerInteracted>,
 ) {
     if held.is_empty() {
         return;
@@ -124,6 +135,18 @@ fn drop_item(
     if keys.just_released(KeyCode::X) {
         let player = player.single();
         let held = held.single();
+
+        for (interactable_entity, interactable) in &interactables {
+            if !interactable.colliding {
+                continue;
+            }
+            player_interacted_events.send(PlayerInteracted {
+                player_entity: player,
+                interacted_entity: interactable_entity,
+                held_entity: Some(held.entity),
+            });
+        }
+
         commands.entity(held.entity).remove_parent();
         commands.entity(player).remove::<Holding>();
         let (mut transform, global_transform, sized) = held_transform.get_mut(held.entity).unwrap();
@@ -137,6 +160,37 @@ fn drop_item(
             ),
             ..default()
         });
+    }
+}
+
+fn do_pick_up_item(
+    commands: &mut Commands,
+    player: Entity,
+    (item, mut transform): (Entity, &mut Transform),
+) {
+    commands.entity(player).add_child(item);
+    transform.translation = Vec2::ZERO.extend(transform.translation.z);
+    commands.entity(player).insert(Holding {
+        entity: item,
+    });
+
+    // Ensure that carried items aren't considered when checking passability.
+    commands.entity(item).remove::<Movable>();
+}
+
+fn auto_pick_up_item(
+    mut items: Query<(Entity, &mut Transform), (With<Item>, Added<AutoPickUp>)>,
+    mut commands: Commands,
+    player: Query<Entity, With<Player>>
+) {
+    for (entity, mut transform) in &mut items {
+        let player = player.single();
+        commands.entity(entity).remove::<AutoPickUp>();
+        do_pick_up_item(
+            &mut commands,
+            player,
+            (entity, &mut transform)
+        );
     }
 }
 
@@ -157,14 +211,11 @@ fn pick_up_item(
             Err(_) => continue,
         };
 
-        commands.entity(event.player_entity).add_child(event.interacted_entity);
-        transform.translation = Vec2::ZERO.extend(transform.translation.z);
-        commands.entity(event.player_entity).insert(Holding {
-            entity: event.interacted_entity,
-        });
-
-        // Ensure that carried items aren't considered when checking passability.
-        commands.entity(event.interacted_entity).remove::<Movable>();
+        do_pick_up_item(
+            &mut commands,
+            event.player_entity,
+            (event.interacted_entity, &mut transform)
+        );
     }
 }
 
@@ -173,6 +224,7 @@ fn keyboard_input(
     mut q: Query<(Entity, &mut Movable, &mut Facing), With<Player>>,
     mut interacted_events: EventWriter<PlayerInteracted>,
     interactables: Query<(Entity, &Interactable)>,
+    player_holding: Query<&Holding, With<Player>>,
 ) {
     let (player_entity, mut movable, mut facing) = q.single_mut();
 
@@ -206,6 +258,10 @@ fn keyboard_input(
     }
 
     if keys.just_released(KeyCode::X) {
+        if !player_holding.is_empty(){
+            return;
+        }
+
         for (entity, interactable) in &interactables {
             if !interactable.colliding {
                 continue;
@@ -213,6 +269,7 @@ fn keyboard_input(
             interacted_events.send(PlayerInteracted {
                 player_entity,
                 interacted_entity: entity,
+                held_entity: None,
             });
         }
     }

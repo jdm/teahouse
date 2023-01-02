@@ -3,7 +3,7 @@ use bevy::utils::Instant;
 use crate::animation::TextureResources;
 use crate::entity::Item;
 use crate::geom::{TILE_SIZE, MapSize, MapPos, HasSize, map_to_screen};
-use crate::interaction::{Interactable, PlayerInteracted};
+use crate::interaction::{Interactable, PlayerInteracted, AutoPickUp};
 use crate::map::Map;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::movable::Movable;
@@ -21,9 +21,16 @@ impl Plugin for TeaPlugin {
             .add_system(spawn_teapot)
             .add_system(interact_with_stash)
             .add_system(interact_with_cupboards)
-            .add_system(interact_with_kettles);
+            .add_system(interact_with_kettles)
+            .add_system(use_dirty_teapot_with_sink);
     }
 }
+
+#[derive(Component)]
+pub struct Dirty;
+
+#[derive(Component)]
+pub struct Sink;
 
 #[derive(Component)]
 pub struct Kettle;
@@ -66,6 +73,30 @@ pub enum Ingredient {
     BrownSugar,
 }
 
+fn use_dirty_teapot_with_sink(
+    mut events: EventReader<PlayerInteracted>,
+    sink: Query<Entity, With<Sink>>,
+    teapots: Query<Entity, With<TeaPot>>,
+    mut cupboards: Query<&mut Cupboard>,
+    mut commands: Commands,
+) {
+    for event in events.iter() {
+        let sink = sink.single();
+        if event.interacted_entity != sink {
+            continue;
+        }
+        let held = match event.held_entity {
+            Some(entity) => entity,
+            None => continue,
+        };
+        if teapots.get(held).is_ok() {
+            let mut cupboard = cupboards.single_mut();
+            cupboard.teapots += 1;
+            commands.entity(held).despawn();
+        }
+    }
+}
+
 fn interact_with_stash(
     mut q: Query<&mut Player>,
     mut player_interacted_events: EventReader<PlayerInteracted>,
@@ -97,7 +128,7 @@ fn interact_with_cupboards(
     mut cupboards: Query<&mut Cupboard>,
     mut status_events: EventWriter<StatusEvent>,
     teapot: Query<&TeaPot, With<Player>>,
-    mut commands: Commands,
+    mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
 ) {
     for event in player_interacted_events.iter() {
         let mut cupboard = match cupboards.get_mut(event.interacted_entity) {
@@ -107,7 +138,7 @@ fn interact_with_cupboards(
         let message = if cupboard.teapots > 0 {
             if teapot.is_empty() {
                 cupboard.teapots -= 1;
-                commands.entity(event.player_entity).insert(TeaPot::default());
+                teapot_spawner.send(SpawnTeapotEvent::into_holding());
                 format!("You take a teapot ({} left).", cupboard.teapots)
             } else {
                 "You're already carrying a teapot.".to_string()
@@ -173,7 +204,37 @@ fn interact_with_kettles(
     }
 }
 
-pub struct SpawnTeapotEvent(pub MapPos);
+pub struct SpawnTeapotEvent {
+    pos: MapPos,
+    dirty: bool,
+    pick_up: bool,
+}
+
+impl SpawnTeapotEvent {
+    pub fn into_holding() -> Self {
+        SpawnTeapotEvent {
+            pos: MapPos { x: 0, y: 0 },
+            dirty: false,
+            pick_up: true,
+        }
+    }
+
+    pub fn at(pos: MapPos) -> Self {
+        SpawnTeapotEvent {
+            pos,
+            dirty: false,
+            pick_up: false,
+        }
+    }
+
+    pub fn dirty(pos: MapPos) -> Self {
+        SpawnTeapotEvent {
+            pos,
+            dirty: true,
+            pick_up: false,
+        }
+    }
+}
 
 fn spawn_teapot(
     mut events: EventReader<SpawnTeapotEvent>,
@@ -184,7 +245,7 @@ fn spawn_teapot(
     for event in events.iter() {
         let size = Vec2::new(TILE_SIZE, TILE_SIZE);
         let map_size = MapSize { width: 1, height: 1 };
-        let rect = map_to_screen(&event.0, &map_size, &map);
+        let rect = map_to_screen(&event.pos, &map_size, &map);
         // FIXME: make better Z defaults and share them.
         let pos = Vec3::new(rect.x, rect.y, 0.1);
 
@@ -206,7 +267,7 @@ fn spawn_teapot(
             size: map_size,
         };
 
-        commands.spawn((
+        let entity = commands.spawn((
             TeaPot::default(),
             Item,
             Interactable {
@@ -217,6 +278,14 @@ fn spawn_teapot(
             movable,
             sized,
             sprite,
-        ));
+        )).id();
+
+        if event.dirty {
+            commands.entity(entity).insert(Dirty);
+        }
+
+        if event.pick_up {
+            commands.entity(entity).insert(AutoPickUp);
+        }
     }
 }

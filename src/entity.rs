@@ -3,7 +3,7 @@ use crate::animation::{AnimationData, AnimData, TextureResources};
 use crate::cat::*;
 use crate::customer::Customer;
 use crate::geom::{HasSize, MapSize, TILE_SIZE, ScreenRect, map_to_screen, MapPos};
-use crate::interaction::Interactable;
+use crate::interaction::{DropZone, Interactable};
 use crate::map::Map;
 use crate::movable::Movable;
 use crate::message_line::{StatusMessage, StatusMessageBundle};
@@ -475,11 +475,25 @@ pub fn setup(
                                 transform,
                             ));
                         }
+                        "sink" => {
+                            commands.spawn((
+                                Sink,
+                                DropZone,
+                                Interactable {
+                                    highlight: Color::rgb(1., 1., 1.),
+                                    message: "Press X to clean and put away pot.".to_owned(),
+                                    ..default()
+                                },
+                                movable,
+                                sized,
+                                transform,
+                            ));
+                        }
                         "player" => {
                             spawn_sprite(EntityType::Player, rect, &mut commands);
                         }
                         "teapot" => {
-                            teapot_spawner.send(SpawnTeapotEvent(pos));
+                            teapot_spawner.send(SpawnTeapotEvent::at(pos));
                         }
                         "cat" => {
                             spawn_sprite_inner(EntityType::Cat, rect, &mut commands, Some(&textures));
