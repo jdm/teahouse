@@ -21,6 +21,7 @@ pub struct TextureResources {
     // FIXME: generalize to more atlases
     pub atlas: Handle<TextureAtlas>,
     pub interior_atlas: Handle<TextureAtlas>,
+    pub people: Handle<Image>,
     pub frame_data: Vec<AnimData>,
     pub teapot: Handle<Image>,
 }

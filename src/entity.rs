@@ -137,15 +137,7 @@ pub const CAT_SPEED: f32 = 25.0;
 pub const CUSTOMER_SPEED: f32 = 40.0;
 pub const SPEED: f32 = 150.0;
 
-pub fn spawn_sprite(
-    entity: EntityType,
-    rect: ScreenRect,
-    commands: &mut Commands,
-) {
-    spawn_sprite_inner(entity, rect, commands, None)
-}
-
-fn spawn_sprite_inner(
+pub fn spawn_sprite_inner(
     entity: EntityType,
     rect: ScreenRect,
     commands: &mut Commands,
@@ -199,6 +191,17 @@ fn spawn_sprite_inner(
     };
     match entity {
         EntityType::Player => {
+            let sprite = SpriteBundle {
+                sprite: Sprite {
+                    custom_size: Some(size),
+                    rect: Some(Rect::new(0., 0., TILE_SIZE, TILE_SIZE)),
+                    ..default()
+                },
+                texture: textures.as_ref().unwrap().people.clone(),
+                transform: Transform::from_translation(pos.extend(z)),
+                ..default()
+            };
+
             commands.spawn((
                 Player::default(),
                 Facing(FacingDirection::Down),
@@ -213,6 +216,17 @@ fn spawn_sprite_inner(
                 });
         }
         EntityType::Customer(..) => {
+            let sprite = SpriteBundle {
+                sprite: Sprite {
+                    custom_size: Some(size),
+                    rect: Some(Rect::new(TILE_SIZE, 0., TILE_SIZE * 2., TILE_SIZE)),
+                    ..default()
+                },
+                texture: textures.as_ref().unwrap().people.clone(),
+                transform: Transform::from_translation(pos.extend(z)),
+                ..default()
+            };
+
             commands.spawn((
                 Customer::default(),
                 Affection::default(),
@@ -345,6 +359,8 @@ pub fn setup(
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
 ) {
+    let people_handle = asset_server.load("people.png");
+
     let teapot_handle = asset_server.load("teapot.png");
 
     let texture_handle = asset_server.load("cat.png");
@@ -360,6 +376,7 @@ pub fn setup(
     let textures = TextureResources {
         atlas: texture_atlas_handle,
         interior_atlas: texture_atlas_handle2,
+        people: people_handle,
         teapot: teapot_handle,
         frame_data: vec![
             AnimData { index: 0, frames: 4, delay: 0.1, },
@@ -494,7 +511,7 @@ pub fn setup(
                             ));
                         }
                         "player" => {
-                            spawn_sprite(EntityType::Player, rect, &mut commands);
+                            spawn_sprite_inner(EntityType::Player, rect, &mut commands, Some(&textures));
                         }
                         "teapot" => {
                             teapot_spawner.send(SpawnTeapotEvent::at(pos));
@@ -519,12 +536,12 @@ pub fn setup(
                                 transform,
                             ));
                         }
-                        _ => {}
+                        s => warn!("Ignoring unknown object kind: {}", s),
                     }
                 }
             }
 
-            _ => {}
+            _ => warn!("Ignoring unknown layer {}", layer.name)
         }
         z += 0.1;
     }
