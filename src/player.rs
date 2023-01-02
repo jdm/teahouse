@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::core_pipeline::clear_color::ClearColorConfig;
 use crate::entity::{Facing, FacingDirection};
 use crate::geom::{TILE_SIZE, HasSize, MapSize, MapPos, map_to_screen};
 use crate::map::Map;
@@ -101,6 +102,7 @@ fn spawn_player(
         ))
             .with_children(|parent| {
                 let mut bundle = Camera2dBundle::default();
+                bundle.camera_2d.clear_color = ClearColorConfig::Custom(Color::BLACK);
                 bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
                 parent.spawn(bundle);
             });
