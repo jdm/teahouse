@@ -28,13 +28,17 @@ pub enum FacingDirection {
 }
 
 impl FacingDirection {
-    pub fn adjust_pos(&self, pos: &MapPos) -> MapPos {
-        let offset = match self {
+    pub fn offset(&self) -> (isize, isize) {
+        match self {
             FacingDirection::Up => (0, -1),
             FacingDirection::Down => (0, 1),
             FacingDirection::Left => (-1, 0),
             FacingDirection::Right => (1, 0),
-        };
+        }
+    }
+
+    pub fn adjust_pos(&self, pos: &MapPos) -> MapPos {
+        let offset = self.offset();
         MapPos {
             x: (pos.x as isize + offset.0) as usize,
             y: (pos.y as isize + offset.1) as usize,

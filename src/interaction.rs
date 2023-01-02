@@ -13,10 +13,13 @@ impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_system(pick_up_item)
-            .add_system(drop_item)
             .add_system(mirror_carried_item)
             .add_system(auto_pick_up_item)
+            .add_system(transfer)
+            .add_system(drop)
             .add_event::<PlayerInteracted>()
+            .add_event::<TransferHeldEntity>()
+            .add_event::<DropHeldEntity>()
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
                     .with_system(keyboard_input)
@@ -119,50 +122,6 @@ pub struct PlayerInteracted {
     pub held_entity: Option<Entity>,
 }
 
-fn drop_item(
-    held: Query<&Holding, With<Player>>,
-    keys: Res<Input<KeyCode>>,
-    mut held_transform: Query<(&mut Transform, &GlobalTransform, &HasSize)>,
-    mut commands: Commands,
-    player: Query<Entity, With<Player>>,
-    interactables: Query<(Entity, &Interactable), With<DropZone>>,
-    mut player_interacted_events: EventWriter<PlayerInteracted>,
-) {
-    if held.is_empty() {
-        return;
-    }
-
-    if keys.just_released(KeyCode::X) {
-        let player = player.single();
-        let held = held.single();
-
-        for (interactable_entity, interactable) in &interactables {
-            if !interactable.colliding {
-                continue;
-            }
-            player_interacted_events.send(PlayerInteracted {
-                player_entity: player,
-                interacted_entity: interactable_entity,
-                held_entity: Some(held.entity),
-            });
-        }
-
-        commands.entity(held.entity).remove_parent();
-        commands.entity(player).remove::<Holding>();
-        let (mut transform, global_transform, sized) = held_transform.get_mut(held.entity).unwrap();
-        transform.translation = global_transform.translation();
-
-        // Ensure that dropped items are considered for passability.
-        commands.entity(held.entity).insert(Movable {
-            size: Vec2::new(
-                sized.size.width as f32 * TILE_SIZE,
-                sized.size.height as f32 * TILE_SIZE,
-            ),
-            ..default()
-        });
-    }
-}
-
 fn do_pick_up_item(
     commands: &mut Commands,
     player: Entity,
@@ -223,8 +182,9 @@ fn keyboard_input(
     keys: Res<Input<KeyCode>>,
     mut q: Query<(Entity, &mut Movable, &mut Facing), With<Player>>,
     mut interacted_events: EventWriter<PlayerInteracted>,
+    mut drop_events: EventWriter<DropHeldEntity>,
     interactables: Query<(Entity, &Interactable)>,
-    player_holding: Query<&Holding, With<Player>>,
+    player_holding: Query<Option<&Holding>, With<Player>>,
 ) {
     let (player_entity, mut movable, mut facing) = q.single_mut();
 
@@ -258,19 +218,93 @@ fn keyboard_input(
     }
 
     if keys.just_released(KeyCode::X) {
-        if !player_holding.is_empty(){
-            return;
-        }
+        let holding = player_holding.single();
 
+        let mut interacting = false;
         for (entity, interactable) in &interactables {
             if !interactable.colliding {
                 continue;
             }
+            interacting = true;
             interacted_events.send(PlayerInteracted {
                 player_entity,
                 interacted_entity: entity,
-                held_entity: None,
+                held_entity: holding.as_ref().map(|h| h.entity),
             });
         }
+
+        // Drop if didn't end up interacting with anything.
+        if !interacting && holding.is_some() {
+            drop_events.send(DropHeldEntity {
+                holder: player_entity,
+            });
+        }
+    }
+}
+
+pub struct DropHeldEntity {
+    pub holder: Entity
+}
+
+fn drop(
+    mut events: EventReader<DropHeldEntity>,
+    holder: Query<&Holding>,
+    mut held_transform: Query<(&mut Transform, &GlobalTransform, &HasSize)>,
+    mut commands: Commands,
+) {
+    for event in events.iter() {
+        let held_entity = match holder.get(event.holder) {
+            Ok(holder) => holder.entity,
+            Err(_) => continue,
+        };
+
+        commands.entity(held_entity).remove_parent();
+        commands.entity(event.holder).remove::<Holding>();
+        let (mut transform, global_transform, sized) = held_transform.get_mut(held_entity).unwrap();
+        transform.translation = global_transform.translation();
+
+        // Ensure that dropped items are considered for passability.
+        commands.entity(held_entity).insert(Movable {
+            size: Vec2::new(
+                sized.size.width as f32 * TILE_SIZE,
+                sized.size.height as f32 * TILE_SIZE,
+            ),
+            ..default()
+        });
+    }
+}
+
+pub struct TransferHeldEntity {
+    pub holder: Entity,
+    pub receiver: Entity,
+}
+
+fn transfer(
+    mut events: EventReader<TransferHeldEntity>,
+    holder: Query<&Holding>,
+    facing: Query<&Facing>,
+    mut held_transform: Query<&mut Transform>,
+    mut commands: Commands,
+) {
+    for event in events.iter() {
+        let held_entity = match holder.get(event.holder) {
+            Ok(holder) => holder.entity,
+            Err(_) => continue,
+        };
+        commands.entity(event.receiver).add_child(held_entity);
+        commands.entity(event.receiver).insert(Holding {
+            entity: held_entity,
+        });
+        commands.entity(event.holder).remove::<Holding>();
+        let holder_facing = facing.get(event.receiver).unwrap();
+        let offset = holder_facing.0.offset();
+        let mut transform = held_transform.get_mut(held_entity).unwrap();
+        //FIXME: awkward. maybe a system for automatically setting transform of new
+        //       held entities? also setting the sprite direction based on facing dir?
+        transform.translation = Vec3::new(
+            offset.0 as f32 * TILE_SIZE,
+            offset.1 as f32 * TILE_SIZE,
+            transform.translation.z
+        );
     }
 }

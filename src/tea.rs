@@ -156,20 +156,32 @@ fn interact_with_cupboards(
 
 fn interact_with_kettles(
     mut player_interacted_events: EventReader<PlayerInteracted>,
-    mut player: Query<(&mut Player, Option<&mut TeaPot>)>,
+    mut teapots: Query<&mut TeaPot>,
+    mut player: Query<&mut Player>,
     kettles: Query<&Kettle>,
     mut status_events: EventWriter<StatusEvent>,
     time: Res<Time>,
 ) {
     for event in player_interacted_events.iter() {
-        let (mut player, teapot) = player.get_mut(event.player_entity).unwrap();
+        let mut player = player.get_mut(event.player_entity).unwrap();
         let _kettle = match kettles.get(event.interacted_entity) {
             Ok(result) => result,
             Err(_) => continue,
         };
-        let mut teapot = match teapot {
-            Some(teapot) => teapot,
+        let held_entity = match event.held_entity {
+            Some(entity) => entity,
             None => {
+                status_events.send(StatusEvent::timed_message(
+                    event.player_entity,
+                    "You need a teapot to use the kettle.".to_owned(),
+                    DEFAULT_EXPIRY,
+                ));
+                continue;
+            }
+        };
+        let mut teapot = match teapots.get_mut(held_entity) {
+            Ok(teapot) => teapot,
+            Err(_) => {
                 status_events.send(StatusEvent::timed_message(
                     event.player_entity,
                     "You need a teapot to use the kettle.".to_owned(),
@@ -227,6 +239,7 @@ impl SpawnTeapotEvent {
         }
     }
 
+    #[allow(dead_code)]
     pub fn dirty(pos: MapPos) -> Self {
         SpawnTeapotEvent {
             pos,

@@ -6,12 +6,12 @@ use crate::entity::{
     Prop, spawn_sprite,
 };
 use crate::geom::{MapSize, map_to_screen, transform_to_map_pos, HasSize};
-use crate::interaction::PlayerInteracted;
+use crate::interaction::{PlayerInteracted, TransferHeldEntity, DropHeldEntity};
 use crate::map::Map;
 use crate::movable::Movable;
 use crate::pathfinding::PathfindTarget;
-use crate::player::Player;
-use crate::tea::{SpawnTeapotEvent, TeaPot};
+use crate::player::Holding;
+use crate::tea::TeaPot;
 use rand::seq::IteratorRandom;
 use rand::Rng;
 use std::default::Default;
@@ -56,16 +56,16 @@ fn tea_delivery(teapot: &TeaPot) -> (Reaction, Vec<String>) {
 }
 
 fn run_customer(
-    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&TeaPot>, &Transform, &mut Facing, &HasSize), Without<Paused>>,
+    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&Holding>, &Transform, &mut Facing, &HasSize), Without<Paused>>,
     chairs: Query<(Entity, &Transform, &HasSize), With<Chair>>,
     doors: Query<Entity, With<Door>>,
     props: Query<&Transform, (With<Prop>, With<Movable>)>,
     mut commands: Commands,
     time: Res<Time>,
-    mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
+    mut drop_events: EventWriter<DropHeldEntity>,
     map: Res<Map>,
 ) {
-    for (entity, mut customer, target, teapot, transform, mut facing, sized) in &mut q {
+    for (entity, mut customer, target, holding, transform, mut facing, sized) in &mut q {
         let mut move_to = false;
         let mut leave = false;
         let mut sit = false;
@@ -88,7 +88,7 @@ fn run_customer(
                 sit = target.is_none();
             }
             CustomerState::WaitingForTea => {
-                drink = teapot.is_some();
+                drink = holding.is_some();
             }
             CustomerState::DrinkingTea(ref mut timer) => {
                 timer.tick(time.delta());
@@ -144,14 +144,14 @@ fn run_customer(
 
         if leave {
             customer.state = CustomerState::Leaving;
-            commands.entity(entity).remove::<TeaPot>();
+
+            drop_events.send(DropHeldEntity {
+                holder: entity,
+            });
+
             let mut rng = rand::thread_rng();
             let door_entity = doors.iter().choose(&mut rng).unwrap();
             commands.entity(entity).insert(PathfindTarget::new(door_entity, false));
-
-            let current_pos = transform_to_map_pos(&transform, &map, &sized.size);
-            let nearest = facing.0.adjust_pos(&current_pos);
-            teapot_spawner.send(SpawnTeapotEvent::dirty(nearest));
         }
     }
 }
@@ -234,8 +234,9 @@ fn customer_spawner(
 
 fn interact_with_customers(
     mut player_interacted_events: EventReader<PlayerInteracted>,
+    mut transfer_events: EventWriter<TransferHeldEntity>,
     mut customers: Query<(Entity, &mut Affection), With<Customer>>,
-    teapot: Query<&TeaPot, With<Player>>,
+    mut teapot: Query<&mut TeaPot>,
     asset_server: Res<AssetServer>,
     mut game_state: ResMut<State<GameState>>,
     time: Res<Time>,
@@ -246,21 +247,22 @@ fn interact_with_customers(
             Ok(result) => result,
             Err(_) => continue,
         };
-        if !teapot.is_empty() {
-            let teapot = teapot.single();
+        if let Some(held) = event.held_entity {
+            if let Ok(mut teapot) = teapot.get_mut(held) {
+                if teapot.steeped_at.is_some() {
+                    transfer_events.send(TransferHeldEntity {
+                        holder: event.player_entity,
+                        receiver: customer_entity,
+                    });
+                    //FIXME: wasm issues
+                    teapot.steeped_for = Some(time.last_update().unwrap() - teapot.steeped_at.unwrap());
 
-            if teapot.steeped_at.is_some() {
-                commands.entity(event.player_entity).remove::<TeaPot>();
-                let mut delivered = (*teapot).clone();
-                //FIXME: wasm issues
-                delivered.steeped_for = Some(time.last_update().unwrap() - delivered.steeped_at.unwrap());
-                commands.entity(customer_entity).insert(delivered);
-
-                let (reaction, conversation) = tea_delivery(&teapot);
-                affection.react(reaction);
-                game_state.set(GameState::Dialog).unwrap();
-                show_message_box(customer_entity, &mut commands, conversation, asset_server);
-                return;
+                    let (reaction, conversation) = tea_delivery(&teapot);
+                    affection.react(reaction);
+                    game_state.set(GameState::Dialog).unwrap();
+                    show_message_box(customer_entity, &mut commands, conversation, asset_server);
+                    return;
+                }
             }
         }
 
