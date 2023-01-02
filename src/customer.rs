@@ -32,7 +32,7 @@ impl Plugin for CustomerPlugin {
     }
 }
 
-pub fn conversation() -> Vec<String> {
+fn conversation() -> Vec<String> {
     return vec![
         "You: Welcome to Sereni Tea!".to_owned(),
         "Customer: Thank you.".to_owned(),
