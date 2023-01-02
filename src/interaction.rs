@@ -14,6 +14,7 @@ impl Plugin for InteractionPlugin {
         app
             .add_system(pick_up_item)
             .add_system(drop_item)
+            .add_system(mirror_carried_item)
             .add_event::<PlayerInteracted>()
             .add_system_set(
                 SystemSet::on_update(GameState::InGame)
@@ -39,6 +40,21 @@ impl Default for Interactable {
             colliding: false,
             message: String::new(),
         }
+    }
+}
+
+fn mirror_carried_item(
+    held: Query<(&Holding, &Facing), (With<Player>, Changed<Facing>)>,
+    mut held_sprite: Query<&mut Sprite>,
+) {
+    if held.is_empty() {
+        return;
+    }
+    let (held, facing) = held.single();
+    let mut held_sprite = held_sprite.get_mut(held.entity).unwrap();
+    match facing.0 {
+        FacingDirection::Left | FacingDirection::Up => held_sprite.flip_x = false,
+        FacingDirection::Right | FacingDirection::Down => held_sprite.flip_x = true,
     }
 }
 
