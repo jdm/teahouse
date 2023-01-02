@@ -136,9 +136,9 @@ struct MovingEntity {
 fn entities_will_collide(first: &MovingEntity, second: &MovingEntity, time_delta: f32, map_size: &MapSize) -> bool {
     let entities_intersecting =
         |first_point: &MapPos, first_size: &MapSize, second_point: &MapPos, second_size: &MapSize| {
-            first_point.x + first_size.width > second_point.x &&
+            first_point.x + first_size.width >= second_point.x &&
                 first_point.x < second_point.x + second_size.width &&
-                first_point.y + first_size.height > second_point.y &&
+                first_point.y + first_size.height >= second_point.y &&
                 first_point.y < second_point.y + second_size.height
         };
 

@@ -391,7 +391,7 @@ pub fn setup(
                         };
                         let sized = HasSize { size };
                         if solid {
-                            let size = Vec2::new(TILE_SIZE, TILE_SIZE);
+                            let size = Vec2::new(rect.w, rect.h);
                             let movable = Movable {
                                 size: size,
                                 ..default()
@@ -428,8 +428,7 @@ pub fn setup(
                     let pos = MapPos { x: (object.x / TILE_SIZE) as usize, y: (object.y / TILE_SIZE) as usize };
                     let rect = map_to_screen(&pos, &size, &map2);
                     let transform = Transform {
-                        //translation: Vec3::new(object.x, object.y, 0.),
-                        translation: Vec3::ZERO,
+                        translation: Vec3::new(rect.x, rect.y, 0.),
                         rotation: Quat::default(),
                         scale: Vec3::splat(1.),
                     };
@@ -449,6 +448,7 @@ pub fn setup(
                                     message: "Press X to fill the pot".to_string(),
                                     ..default()
                                 },
+                                movable,
                                 sized,
                                 transform,
                             ));
@@ -464,6 +464,7 @@ pub fn setup(
                                     message: format!("Press X to pick up {:?}", ingredient),
                                     ..default()
                                 },
+                                movable,
                                 sized,
                                 transform,
                             ));
