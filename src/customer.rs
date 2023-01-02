@@ -330,14 +330,14 @@ fn interact_with_customers(
                     let (reaction, conversation) = tea_delivery(&teapot, &customer.expected);
                     affection.react(reaction);
                     game_state.set(GameState::Dialog).unwrap();
-                    show_message_box(customer_entity, &mut commands, conversation, asset_server);
+                    show_message_box(customer_entity, &mut commands, conversation, &asset_server);
                     return;
                 }
             }
         }
 
         game_state.set(GameState::Dialog).unwrap();
-        show_message_box(customer_entity, &mut commands, conversation(&customer.expected), asset_server);
+        show_message_box(customer_entity, &mut commands, conversation(&customer.expected), &asset_server);
         return;
     }
 }

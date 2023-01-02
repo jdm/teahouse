@@ -4,7 +4,7 @@ use crate::cat::{CatBed, SpawnCatEvent};
 use crate::geom::{HasSize, MapSize, TILE_SIZE, map_to_screen, MapPos};
 use crate::map::Map;
 use crate::movable::Movable;
-use crate::menu::StartingIngredients;
+use crate::menu::{StartingIngredients, spawn_menu};
 use crate::player::SpawnPlayerEvent;
 use crate::tea::{SpawnTeapotEvent, spawn_cupboard, spawn_kettle, spawn_teastash, spawn_sink};
 use std::default::Default;
@@ -253,6 +253,9 @@ pub fn setup(
                         }
                         "cupboard" => {
                             spawn_cupboard(&mut commands, movable, sized, transform);
+                        }
+                        "menu" => {
+                            spawn_menu(&mut commands, movable, sized, transform);
                         }
                         s => warn!("Ignoring unknown object kind: {}", s),
                     }

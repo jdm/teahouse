@@ -1,4 +1,9 @@
 use bevy::prelude::*;
+use crate::GameState;
+use crate::dialog::show_message_box;
+use crate::geom::HasSize;
+use crate::interaction::{PlayerInteracted, Interactable};
+use crate::movable::Movable;
 use crate::tea::Ingredient;
 use rand::Rng;
 use rand::prelude::{IteratorRandom, SliceRandom};
@@ -9,7 +14,8 @@ impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<StartingIngredients>()
-            .add_startup_system(init_menu);
+            .add_startup_system(init_menu)
+            .add_system(interact_with_menu);
     }
 }
 
@@ -109,4 +115,52 @@ pub struct TeaRecipe {
 #[derive(Resource, Debug)]
 pub struct Menu {
     pub teas: Vec<TeaRecipe>,
+}
+
+#[derive(Component)]
+pub struct MenuEntity;
+
+fn interact_with_menu(
+    mut player_interacted_events: EventReader<PlayerInteracted>,
+    menu_entity: Query<Entity, With<MenuEntity>>,
+    mut game_state: ResMut<State<GameState>>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    menu: Res<Menu>,
+) {
+    for event in player_interacted_events.iter() {
+        if let Ok(menu_entity) = menu_entity.get(event.interacted_entity) {
+            let conversation = menu.teas.iter()
+                .map(|recipe| {
+                    let mut dialogue = format!("{}\n\nIngredients:", recipe.name);
+                    for (ingredient, amount) in &recipe.ingredients {
+                        dialogue += &format!("\n{:?} tsp of {:?}", amount, ingredient);
+                    }
+                    dialogue
+                })
+                .collect();
+            game_state.set(GameState::Dialog).unwrap();
+            show_message_box(menu_entity, &mut commands, conversation, &asset_server);
+            return;
+        }
+    }
+}
+
+pub fn spawn_menu(
+    commands: &mut Commands,
+    movable: Movable,
+    sized: HasSize,
+    transform: Transform,
+) {
+    commands.spawn((
+        MenuEntity,
+        Interactable {
+            highlight: Color::rgb(1., 1., 1.),
+            message: "Press X to read menu".to_owned(),
+            ..default()
+        },
+        movable,
+        sized,
+        transform,
+    ));
 }

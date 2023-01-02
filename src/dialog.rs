@@ -32,7 +32,7 @@ pub fn show_message_box(
     entity: Entity,
     commands: &mut Commands,
     messages: Vec<String>,
-    asset_server: Res<AssetServer>,
+    asset_server: &AssetServer,
 ) {
     commands.entity(entity).insert(Paused);
 
