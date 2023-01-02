@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::entity::{Facing, FacingDirection, Paused};
 use crate::geom::{
-    MapPos, MapSize, HasSize, transform_to_map_pos, map_to_screen,
+    MapPos, HasSize, transform_to_map_pos, map_to_screen,
 };
 use crate::map::Map;
 
@@ -134,7 +134,6 @@ pub fn move_movables(
         Query<(&Movable, &mut Transform), Without<Paused>>,
     )>,
     timer: Res<Time>,
-    map: Res<Map>,
 ) {
     let delta_seconds = timer.delta_seconds();
 

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
 use crate::entity::{SPEED, Item, Facing, FacingDirection};
-use crate::geom::HasSize;
+use crate::geom::{TILE_SIZE, HasSize};
 use crate::movable::Movable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::player::{Holding, Player};
@@ -97,7 +97,7 @@ pub struct PlayerInteracted {
 fn drop_item(
     held: Query<&Holding, With<Player>>,
     keys: Res<Input<KeyCode>>,
-    mut held_transform: Query<(&mut Transform, &GlobalTransform)>,
+    mut held_transform: Query<(&mut Transform, &GlobalTransform, &HasSize)>,
     mut commands: Commands,
     player: Query<Entity, With<Player>>,
 ) {
@@ -110,8 +110,17 @@ fn drop_item(
         let held = held.single();
         commands.entity(held.entity).remove_parent();
         commands.entity(player).remove::<Holding>();
-        let (mut transform, global_transform) = held_transform.get_mut(held.entity).unwrap();
+        let (mut transform, global_transform, sized) = held_transform.get_mut(held.entity).unwrap();
         transform.translation = global_transform.translation();
+
+        // Ensure that dropped items are considered for passability.
+        commands.entity(held.entity).insert(Movable {
+            size: Vec2::new(
+                sized.size.width as f32 * TILE_SIZE,
+                sized.size.height as f32 * TILE_SIZE,
+            ),
+            ..default()
+        });
     }
 }
 
@@ -138,6 +147,9 @@ fn pick_up_item(
             entity: event.interacted_entity,
             _entity_type: item.0.clone(),
         });
+
+        // Ensure that carried items aren't considered when checking passability.
+        commands.entity(event.interacted_entity).remove::<Movable>();
     }
 }
 
