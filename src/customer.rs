@@ -36,6 +36,7 @@ impl Plugin for CustomerPlugin {
             .add_system(customer_spawner)
             .add_system(spawn_customer_by_door)
             .add_system(interact_with_customers)
+            .add_system(persist_affection)
             .add_event::<NewCustomerEvent>();
     }
 }
@@ -240,24 +241,26 @@ fn run_drinking_tea(
 
 fn run_leave(
     customers: Query<(
-        Entity, &Customer, Option<&PathfindTarget>, &Affection
+        Entity, Option<&PathfindTarget>
     ), (
-        With<State<Leaving>>, Without<Paused>
+        With<State<Leaving>>, With<Customer>, Without<Paused>
     )>,
     mut commands: Commands,
+) {
+    for (customer_entity, target) in &customers {
+        if target.is_none() {
+            commands.entity(customer_entity).despawn();
+        }
+    }
+}
+
+fn persist_affection(
+    customers: Query<(&Customer, &Affection), Changed<Affection>>,
     mut personalities: ResMut<Personalities>,
 ) {
-    for (customer_entity, customer, target, affection) in &customers {
-        if target.is_some() {
-            continue;
-        }
-
-        // Persist any relationship changes that occurred during this visit.
-        let personality_data = personalities.data.get_mut(&customer.personality).unwrap();
-        personality_data.affection = affection.clone();
-        personality_data.visits += 1;
-
-        commands.entity(customer_entity).despawn();
+    for (customer, affection) in &customers {
+        let data = personalities.data.get_mut(&customer.personality).unwrap();
+        data.affection = affection.clone();
     }
 }
 
@@ -315,7 +318,7 @@ fn spawn_customer_by_door(
     map: Res<Map>,
     texture: Res<CustomerTexture>,
     menu: Res<Menu>,
-    personalities: Res<Personalities>,
+    mut personalities: ResMut<Personalities>,
 ) {
     let mut rng = rand::thread_rng();
     // FIXME: assume customers are all 1x1 entities.
@@ -344,7 +347,10 @@ fn spawn_customer_by_door(
         };
 
         let personality = Personality::generate_random();
-        let affection = personalities.data[&personality].affection.clone();
+        let personality_data = personalities.data.get_mut(&personality).unwrap();
+        let affection = personality_data.affection.clone();
+        personality_data.visits += 1;
+
         commands.spawn((
             Customer {
                 expected: menu.teas.iter().choose(&mut rng).cloned().unwrap(),
