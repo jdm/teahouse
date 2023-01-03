@@ -11,6 +11,7 @@ use crate::map::Map;
 use crate::menu::{Menu, TeaRecipe};
 use crate::movable::Movable;
 use crate::pathfinding::PathfindTarget;
+use crate::personality::{Personality, Personalities};
 use crate::player::Holding;
 use crate::tea::TeaPot;
 use rand::seq::IteratorRandom;
@@ -35,42 +36,44 @@ impl Plugin for CustomerPlugin {
     }
 }
 
-fn conversation(recipe: &TeaRecipe) -> Vec<String> {
-    return vec![
-        "You: Welcome to Sereni Tea!".to_owned(),
-        "Customer: Thank you.".to_owned(),
-        format!("Customer: I would like the {}, please.", recipe.name),
-        "You: Coming right up!.".to_owned(),
-    ];
-}
+impl Customer {
+    fn conversation(&self) -> Vec<String> {
+        return vec![
+            "You: Welcome to Sereni Tea!".to_owned(),
+            format!("{:?}: Thank you.", self.personality),
+            format!("{:?}: I would like the {}, please.", self.personality, self.expected.name),
+            "You: Coming right up!.".to_owned(),
+        ];
+    }
 
-fn tea_delivery(teapot: &TeaPot, recipe: &TeaRecipe) -> (Reaction, Vec<String>) {
-    let hint = teapot
-        .ingredients
-        .iter()
-        .max_by_key(|(_ingredient, amount)| *amount)
-        .unwrap()
-        .0;
+    fn tea_delivery(&self, teapot: &TeaPot) -> (Reaction, Vec<String>) {
+        let hint = teapot
+            .ingredients
+            .iter()
+            .max_by_key(|(_ingredient, amount)| *amount)
+            .unwrap()
+            .0;
 
-    let mut conversation = vec![
-        "You: Here's your tea.".to_owned(),
-        "Customer: Oh, thank you!".to_owned(),
-        format!("Customer: Is that a hint of {:?}?", hint),
-        "You: Enjoy!".to_owned(),
-    ];
-    let recipe_ingredients = HashMap::from_iter(recipe.ingredients.clone().into_iter());
-    let reaction = if recipe_ingredients != teapot.ingredients {
-        conversation.push("Customer: Wait a minute! This isn't what I ordered.".to_owned());
-        Reaction::Negative
-    } else {
-        conversation.push("Customer: This is exactly what I was hoping for.".to_owned());
-        Reaction::Positive
-    };
-    (reaction, conversation)
+        let mut conversation = vec![
+            "You: Here's your tea.".to_owned(),
+            format!("{:?}: Oh, thank you!", self.personality),
+            format!("{:?}: Is that a hint of {:?}?", self.personality, hint),
+            "You: Enjoy!".to_owned(),
+        ];
+        let recipe_ingredients = HashMap::from_iter(self.expected.ingredients.clone().into_iter());
+        let reaction = if recipe_ingredients != teapot.ingredients {
+            conversation.push("Customer: Wait a minute! This isn't what I ordered.".to_owned());
+            Reaction::Negative
+        } else {
+            conversation.push("Customer: This is exactly what I was hoping for.".to_owned());
+            Reaction::Positive
+        };
+        (reaction, conversation)
+    }
 }
 
 fn run_customer(
-    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&Holding>, &Transform, &mut Facing, &HasSize, &mut AnimationData), Without<Paused>>,
+    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&Holding>, &Transform, &mut Facing, &HasSize, &mut AnimationData, &Affection), Without<Paused>>,
     chairs: Query<(Entity, &Transform, &HasSize), With<Chair>>,
     doors: Query<Entity, With<Door>>,
     props: Query<&Transform, (With<Prop>, With<Movable>)>,
@@ -78,8 +81,9 @@ fn run_customer(
     time: Res<Time>,
     mut drop_events: EventWriter<DropHeldEntity>,
     map: Res<Map>,
+    mut personalities: ResMut<Personalities>,
 ) {
-    for (entity, mut customer, target, holding, transform, mut facing, sized, mut animation) in &mut q {
+    for (entity, mut customer, target, holding, transform, mut facing, sized, mut animation, affection) in &mut q {
         let mut move_to = false;
         let mut leave = false;
         let mut sit = false;
@@ -118,6 +122,11 @@ fn run_customer(
             }
             CustomerState::Leaving => {
                 if target.is_none() {
+                    // Persist any relationship changes that occurred during this visit.
+                    let personality_data = personalities.data.get_mut(&customer.personality).unwrap();
+                    personality_data.affection = affection.clone();
+                    personality_data.visits += 1;
+
                     commands.entity(entity).despawn();
                 }
             }
@@ -190,6 +199,7 @@ pub enum CustomerState {
 pub struct Customer {
     pub state: CustomerState,
     pub expected: TeaRecipe,
+    pub personality: Personality,
 }
 
 pub struct SpawnerState {
@@ -240,6 +250,7 @@ fn spawn_customer_by_door(
     map: Res<Map>,
     texture: Res<CustomerTexture>,
     menu: Res<Menu>,
+    personalities: Res<Personalities>,
 ) {
     let mut rng = rand::thread_rng();
     // FIXME: assume customers are all 1x1 entities.
@@ -267,12 +278,15 @@ fn spawn_customer_by_door(
             ..default()
         };
 
+        let personality = Personality::generate_random();
+        let affection = personalities.data[&personality].affection.clone();
         commands.spawn((
             Customer {
                 state: CustomerState::LookingForChair,
-                expected: menu.teas.iter().choose(&mut rng).cloned().unwrap()
+                expected: menu.teas.iter().choose(&mut rng).cloned().unwrap(),
+                personality,
             },
-            Affection::default(),
+            affection,
             Facing(FacingDirection::Down),
             AnimationData {
                 current_animation: AnimationState::WalkDown.into(),
@@ -327,7 +341,7 @@ fn interact_with_customers(
                     //FIXME: wasm issues
                     teapot.steeped_for = Some(time.last_update().unwrap() - teapot.steeped_at.unwrap());
 
-                    let (reaction, conversation) = tea_delivery(&teapot, &customer.expected);
+                    let (reaction, conversation) = customer.tea_delivery(&teapot);
                     affection.react(reaction);
                     game_state.set(GameState::Dialog).unwrap();
                     show_message_box(customer_entity, &mut commands, conversation, &asset_server);
@@ -337,7 +351,7 @@ fn interact_with_customers(
         }
 
         game_state.set(GameState::Dialog).unwrap();
-        show_message_box(customer_entity, &mut commands, conversation(&customer.expected), &asset_server);
+        show_message_box(customer_entity, &mut commands, customer.conversation(), &asset_server);
         return;
     }
 }

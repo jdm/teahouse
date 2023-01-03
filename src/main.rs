@@ -11,6 +11,7 @@ use crate::menu::MenuPlugin;
 use crate::message_line::MessageLinePlugin;
 use crate::movable::MovablePlugin;
 use crate::pathfinding::PathfindingPlugin;
+use crate::personality::PersonalityPlugin;
 use crate::player::PlayerPlugin;
 use crate::tea::TeaPlugin;
 
@@ -27,6 +28,7 @@ mod menu;
 mod message_line;
 mod movable;
 mod pathfinding;
+mod personality;
 mod player;
 mod tea;
 
@@ -65,6 +67,7 @@ fn main() {
         .add_plugin(MapPlugin)
         .add_plugin(PlayerPlugin)
         .add_plugin(MenuPlugin)
+        .add_plugin(PersonalityPlugin)
         .add_state(GameState::InGame)
         .add_startup_system(setup)
         .add_system(bevy::window::close_on_esc);

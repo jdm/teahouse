@@ -7,6 +7,7 @@ use crate::movable::Movable;
 use crate::menu::{StartingIngredients, spawn_menu};
 use crate::player::SpawnPlayerEvent;
 use crate::tea::{SpawnTeapotEvent, spawn_cupboard, spawn_kettle, spawn_teastash, spawn_sink};
+use rand_derive2::RandGen;
 use std::default::Default;
 use tiled::{Loader, LayerType, PropertyValue, ObjectShape};
 
@@ -54,7 +55,7 @@ impl FacingDirection {
 #[derive(Component, Deref, DerefMut)]
 pub struct Facing(pub FacingDirection);
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Clone)]
 pub struct Affection {
     affection: f32,
 }
@@ -67,13 +68,40 @@ pub enum Reaction {
     MajorNegative,
 }
 
-#[allow(dead_code)]
+#[derive(RandGen, PartialEq, Copy, Clone)]
 pub enum RelationshipStatus {
     Angry,
     Neutral,
     Friendly,
     VeryFriendly,
     Crushing,
+}
+
+const AFFECTION_LEVELS: &[(RelationshipStatus, f32, f32)] = &[
+    (RelationshipStatus::Angry, f32::NEG_INFINITY, 0.),
+    (RelationshipStatus::Neutral, 0., 1.5),
+    (RelationshipStatus::Friendly, 1.5, 5.),
+    (RelationshipStatus::VeryFriendly, 5., 7.5),
+    (RelationshipStatus::Crushing, 7.5, f32::INFINITY), 
+];
+
+impl From<RelationshipStatus> for Affection {
+    fn from(desired: RelationshipStatus) -> Self {
+        let mut value = 0.;
+        for (status, lower, upper) in AFFECTION_LEVELS {
+            if desired == *status {
+                if !upper.is_infinite() {
+                    value = *upper;
+                    break;
+                }
+                value = *lower;
+                break;
+            }
+        }
+        Affection {
+            affection: value,
+        }
+    }
 }
 
 impl Affection {
@@ -87,17 +115,13 @@ impl Affection {
     }
 
     pub fn status(&self) -> RelationshipStatus {
-        if self.affection < 0. {
-            RelationshipStatus::Angry
-        } else if self.affection < 1.5 {
-            RelationshipStatus::Neutral
-        } else if self.affection < 5. {
-            RelationshipStatus::Friendly
-        } else if self.affection < 7.5 {
-            RelationshipStatus::VeryFriendly
-        } else {
-            RelationshipStatus::Crushing
+        for (status, lower, upper) in AFFECTION_LEVELS {
+            if (lower.is_infinite() || self.affection >= *lower) &&
+                (upper.is_infinite() || self.affection < *upper) {
+                return *status;
+            }
         }
+        unimplemented!()
     }
 }
 
