@@ -1,8 +1,8 @@
 use bevy::prelude::*;
-use bevy::sprite::collide_aabb::collide;
 use crate::GameState;
 use crate::entity::{Item, Facing, FacingDirection};
-use crate::geom::{TILE_SIZE, HasSize};
+use crate::geom::{TILE_SIZE, HasSize, transform_to_map_pos, MapPos};
+use crate::map::Map;
 use crate::movable::Movable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::player::{Holding, Player, SPEED};
@@ -30,8 +30,6 @@ impl Plugin for InteractionPlugin {
 
 #[derive(Component)]
 pub struct Interactable {
-    pub highlight: Color,
-    pub previous: Option<Color>,
     pub colliding: bool,
     pub message: String,
 }
@@ -39,8 +37,6 @@ pub struct Interactable {
 impl Default for Interactable {
     fn default() -> Self {
         Self {
-            highlight: Color::BLACK,
-            previous: None,
             colliding: false,
             message: String::new(),
         }
@@ -70,32 +66,45 @@ fn mirror_carried_item(
 }
 
 fn highlight_interactable(
-    player: Query<(&Transform, &Movable), (With<Player>, Changed<Transform>)>,
-    mut interactable: Query<(Entity, &mut Interactable, &Transform, Option<&mut Sprite>, &HasSize), Changed<Transform>>,
+    player: Query<(&Transform, &Facing, &HasSize), (With<Player>, Or<(Changed<Transform>, Changed<Facing>)>)>,
+    mut interactable: Query<(Entity, &mut Interactable, &Transform, &HasSize), Changed<Transform>>,
     mut status_events: EventWriter<StatusEvent>,
+    map: Res<Map>,
 ) {
     if player.is_empty() {
         return;
     }
 
-    let (player_transform, player_movable) = player.single();
+    let (player_transform, facing, sized) = player.single();
 
-    for (entity, mut interactable, transform, mut sprite, size) in interactable.iter_mut() {
-        let screen_size = size.screen_size();
-        let collision = collide(
-            transform.translation,
-            Vec2::new(screen_size.0, screen_size.1),
-            player_transform.translation,
-            player_movable.size * 1.3,
-        );
-        if collision.is_some() {
-            if interactable.previous.is_none() {
-                if let Some(ref mut sprite) = sprite {
-                    interactable.previous = Some(sprite.color);
-                    sprite.color = interactable.highlight;
-                } else {
-                    interactable.previous = Some(Color::WHITE);
-                }
+    let offsets = match facing.0 {
+        FacingDirection::Up => [(0, -1), (-1, -1), (1, -1)],
+        FacingDirection::Down => [(0, 1), (-1, 1), (1, 1)],
+        FacingDirection::Left => [(-1, 0), (-1, -1), (-1, 1)],
+        FacingDirection::Right => [(1, 0), (1, -1), (1, 1)],
+    };
+    let player_pos = transform_to_map_pos(&player_transform, &map, &sized.size);
+    let adjusted = offsets
+        .iter()
+        .map(|(x, y)| MapPos {
+            x: (x + player_pos.x as isize) as usize,
+            y: (y + player_pos.y as isize) as usize })
+        .collect::<Vec<_>>();
+
+    let mut found = false;
+    for (entity, mut interactable, transform, size) in interactable.iter_mut() {
+        let interactable_pos = transform_to_map_pos(&transform, &map, &size.size);
+        let mut collision = false;
+        for point in &adjusted {
+            if point.x >= interactable_pos.x && point.x < interactable_pos.x + size.size.width &&
+                point.y >= interactable_pos.y && point.y < interactable_pos.y + size.size.height
+            {
+                collision = true;
+                break;
+            }
+        }
+        if collision && !found {
+            if !interactable.colliding {
 
                 status_events.send(StatusEvent::timed_message(
                     entity,
@@ -104,11 +113,8 @@ fn highlight_interactable(
                 ));
             }
             interactable.colliding = true;
-        } else if collision.is_none() && interactable.previous.is_some() {
-            let previous = interactable.previous.take();
-            if let Some(ref mut sprite) = sprite {
-                sprite.color = previous.unwrap();
-            }
+            found = true;
+        } else if !collision || found {
             interactable.colliding = false;
 
             status_events.send(StatusEvent::clear(entity));

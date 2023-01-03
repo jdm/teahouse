@@ -276,7 +276,6 @@ fn spawn_cat(
             Facing(FacingDirection::Down),
             State::default(),
             Interactable {
-                highlight: Color::rgb(1., 1., 1.),
                 message: "Press X to pet the cat".to_string(),
                 ..default()
             },

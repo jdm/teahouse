@@ -296,7 +296,6 @@ fn spawn_teapot(
             TeaPot::default(),
             Item,
             Interactable {
-                highlight: Color::rgb(1., 1., 1.),
                 message: "Press X to collect".to_string(),
                 ..default()
             },
@@ -325,7 +324,6 @@ pub fn spawn_cupboard(
     commands.spawn((
         Cupboard { teapots: rng.gen_range(4..10) },
         Interactable {
-            highlight: Color::rgb(1., 1., 1.),
             message: "Press X to pick up teapot".to_string(),
             ..default()
         },
@@ -344,7 +342,6 @@ pub fn spawn_kettle(
     commands.spawn((
         Kettle,
         Interactable {
-            highlight: Color::rgb(1., 1., 1.),
             message: "Press X to fill the pot".to_string(),
             ..default()
         },
@@ -365,7 +362,6 @@ pub fn spawn_teastash(
     commands.spawn((
         TeaStash { ingredient, amount },
         Interactable {
-            highlight: Color::rgb(1., 1., 1.),
             message: format!("Press X to pick up {:?}", ingredient),
             ..default()
         },
@@ -384,7 +380,6 @@ pub fn spawn_sink(
     commands.spawn((
         Sink,
         Interactable {
-            highlight: Color::rgb(1., 1., 1.),
             message: "Press X to clean and put away pot.".to_owned(),
             ..default()
         },

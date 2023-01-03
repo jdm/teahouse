@@ -364,7 +364,6 @@ fn spawn_customer_by_door(
                 facing_conversion,
             },
             Interactable {
-                highlight: Color::rgb(1., 1., 1.),
                 message: "Press X to talk".to_string(),
                 ..default()
             },

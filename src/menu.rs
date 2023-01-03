@@ -155,7 +155,6 @@ pub fn spawn_menu(
     commands.spawn((
         MenuEntity,
         Interactable {
-            highlight: Color::rgb(1., 1., 1.),
             message: "Press X to read menu".to_owned(),
             ..default()
         },
