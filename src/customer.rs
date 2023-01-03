@@ -28,7 +28,11 @@ impl Plugin for CustomerPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_startup_system(init_texture)
-            .add_system(run_customer)
+            .add_system(run_looking_for_chair)
+            .add_system(run_moving_to_chair)
+            .add_system(run_waiting_for_tea)
+            .add_system(run_drinking_tea)
+            .add_system(run_leave)
             .add_system(customer_spawner)
             .add_system(spawn_customer_by_door)
             .add_system(interact_with_customers)
@@ -72,132 +76,193 @@ impl Customer {
     }
 }
 
-fn run_customer(
-    mut q: Query<(Entity, &mut Customer, Option<&PathfindTarget>, Option<&Holding>, &Transform, &mut Facing, &HasSize, &mut AnimationData, &Affection), Without<Paused>>,
+#[derive(Component, Deref, DerefMut)]
+struct State<T>(pub T);
+
+#[derive(Component)]
+struct LookingForChair;
+
+#[derive(Component)]
+struct MovingToChair;
+
+#[derive(Component)]
+struct WaitingForTea;
+
+#[derive(Component)]
+struct DrinkingTea(Timer);
+
+#[derive(Component)]
+struct Leaving;
+
+fn run_looking_for_chair(
+    customers: Query<(
+        Entity, Option<&PathfindTarget>
+    ),(
+        With<Customer>, With<State<LookingForChair>>, Without<Paused>
+    )>,
     chairs: Query<(Entity, &Transform, &HasSize), With<Chair>>,
-    doors: Query<Entity, With<Door>>,
-    props: Query<&Transform, (With<Prop>, With<Movable>)>,
     mut commands: Commands,
-    time: Res<Time>,
-    mut drop_events: EventWriter<DropHeldEntity>,
-    map: Res<Map>,
-    mut personalities: ResMut<Personalities>,
 ) {
-    for (entity, mut customer, target, holding, transform, mut facing, sized, mut animation, affection) in &mut q {
-        let mut move_to = false;
-        let mut leave = false;
-        let mut sit = false;
-        let mut drink = false;
-        match customer.state {
-            CustomerState::LookingForChair => {
-                if target.is_none() {
-                    let mut rng = rand::thread_rng();
-                    let chair_entity = chairs
-                        .iter()
-                        .map(|(entity, _, _)| entity)
-                        .choose(&mut rng)
-                        .unwrap();
-                    commands.entity(entity).insert(PathfindTarget::new(chair_entity, true));
-                } else {
-                    move_to = true;
-                }
-            }
-            CustomerState::MovingToChair => {
-                sit = target.is_none();
-            }
-            CustomerState::WaitingForTea => {
-                let anim_state = standing_conversion(facing.0);
-                if !animation.is_current(anim_state) {
-                    animation.set_current(anim_state);
-                }
-                drink = holding.is_some();
-            }
-            CustomerState::DrinkingTea(ref mut timer) => {
-                let anim_state = standing_conversion(facing.0);
-                if !animation.is_current(anim_state) {
-                    animation.set_current(anim_state);
-                }
-                timer.tick(time.delta());
-                leave = timer.finished();
-            }
-            CustomerState::Leaving => {
-                if target.is_none() {
-                    // Persist any relationship changes that occurred during this visit.
-                    let personality_data = personalities.data.get_mut(&customer.personality).unwrap();
-                    personality_data.affection = affection.clone();
-                    personality_data.visits += 1;
-
-                    commands.entity(entity).despawn();
-                }
-            }
-        }
-
-        if move_to {
-            customer.state = CustomerState::MovingToChair;
-        }
-
-        if sit {
-            // Verify that we made it to a chair and didn't just give up.
-            let current_pos = transform_to_map_pos(&transform, &map, &sized.size);
-            let mut on_chair = false;
-            for (_, chair_transform, chair_size) in &chairs {
-                let chair_pos = transform_to_map_pos(&chair_transform, &map, &chair_size.size);
-                if chair_pos == current_pos {
-                    on_chair = true;
-                    break;
-                }
-            }
-            if !on_chair {
-                customer.state = CustomerState::LookingForChair;
-                return;
-            }
-
-            customer.state = CustomerState::WaitingForTea;
-            // Ensure the customer is facing an appropriate direction for a table,
-            // not just the last one they were moving.
-            let dirs = [FacingDirection::Up, FacingDirection::Down, FacingDirection::Left, FacingDirection::Right];
-            let neighbours = dirs
-                .iter()
-                .map(|dir| dir.adjust_pos(&current_pos))
-                .collect::<Vec<_>>();
-            for prop_transform in &props {
-                let prop_pos = transform_to_map_pos(&prop_transform, &map, &sized.size);
-                if let Some(idx) = neighbours.iter().position(|pos| *pos == prop_pos) {
-                    facing.0 = dirs[idx];
-                    break;
-                }
-            }
-        }
-
-        if drink {
-            customer.state = CustomerState::DrinkingTea(Timer::new(Duration::from_secs(5), TimerMode::Once));
-        }
-
-        if leave {
-            customer.state = CustomerState::Leaving;
-
-            drop_events.send(DropHeldEntity {
-                holder: entity,
-            });
-
+    for (customer_entity, target) in &customers {
+        if target.is_none() {
             let mut rng = rand::thread_rng();
-            let door_entity = doors.iter().choose(&mut rng).unwrap();
-            commands.entity(entity).insert(PathfindTarget::new(door_entity, true));
+            let chair_entity = chairs
+                .iter()
+                .map(|(entity, _, _)| entity)
+                .choose(&mut rng)
+                .unwrap();
+            commands.entity(customer_entity)
+                .insert(PathfindTarget::new(chair_entity, true));
+        } else {
+            commands.entity(customer_entity)
+                .remove::<State<LookingForChair>>()
+                .insert(State(MovingToChair));
         }
     }
 }
 
-pub enum CustomerState {
-    LookingForChair,
-    MovingToChair,
-    WaitingForTea,
-    DrinkingTea(Timer),
-    Leaving,
+fn run_moving_to_chair(
+    mut customers: Query<(
+        Entity, Option<&PathfindTarget>, &Transform, &HasSize, &mut Facing,
+    ), (
+        With<Customer>, With<State<MovingToChair>>, Without<Paused>
+    )>,
+    chairs: Query<(&Transform, &HasSize), With<Chair>>,
+    props: Query<&Transform, (With<Prop>, With<Movable>)>,
+    map: Res<Map>,
+    mut commands: Commands,
+) {
+    for (customer_entity, target, transform, sized, mut facing) in &mut customers {
+        if target.is_some() {
+            continue;
+        }
+
+        // Verify that we made it to a chair and didn't just give up.
+        let current_pos = transform_to_map_pos(&transform, &map, &sized.size);
+        let mut on_chair = false;
+        for (chair_transform, chair_size) in &chairs {
+            let chair_pos = transform_to_map_pos(&chair_transform, &map, &chair_size.size);
+            if chair_pos == current_pos {
+                on_chair = true;
+                break;
+            }
+        }
+
+        let mut command_builder = commands.entity(customer_entity);
+        command_builder.remove::<State<MovingToChair>>();
+        if !on_chair {
+            command_builder.insert(State(LookingForChair));
+            continue;
+        }
+
+        command_builder.insert(State(WaitingForTea));
+
+        // Ensure the customer is facing an appropriate direction for a table,
+        // not just the last one they were moving.
+        let dirs = [
+            FacingDirection::Up,
+            FacingDirection::Down,
+            FacingDirection::Left,
+            FacingDirection::Right
+        ];
+        let neighbours = dirs
+            .iter()
+            .map(|dir| dir.adjust_pos(&current_pos))
+            .collect::<Vec<_>>();
+        for prop_transform in &props {
+            let prop_pos = transform_to_map_pos(&prop_transform, &map, &sized.size);
+            if let Some(idx) = neighbours.iter().position(|pos| *pos == prop_pos) {
+                facing.0 = dirs[idx];
+                break;
+            }
+        }
+    }
+}
+
+fn run_waiting_for_tea(
+    mut customers: Query<(
+        Entity, Option<&Holding>, &Facing, &mut AnimationData
+    ), (
+        With<Customer>, With<State<WaitingForTea>>, Without<Paused>
+    )>,
+    mut commands: Commands,
+) {
+    for (customer_entity, holding, facing, mut animation) in &mut customers {
+        let anim_state = standing_conversion(facing.0);
+        if !animation.is_current(anim_state) {
+            animation.set_current(anim_state);
+        }
+        if holding.is_some() {
+            commands.entity(customer_entity)
+                .remove::<State<WaitingForTea>>()
+                .insert(State(DrinkingTea(
+                    Timer::new(Duration::from_secs(5), TimerMode::Once)
+                )));
+        }
+    }
+}
+
+fn run_drinking_tea(
+    mut customers: Query<(
+        Entity, &Facing, &mut AnimationData, &mut State<DrinkingTea>
+    ), (
+        With<Customer>, Without<Paused>,
+    )>,
+    doors: Query<Entity, With<Door>>,
+    mut commands: Commands,
+    mut drop_events: EventWriter<DropHeldEntity>,
+    time: Res<Time>,
+) {
+    for (customer_entity, facing, mut animation, mut state) in &mut customers {
+        let anim_state = standing_conversion(facing.0);
+        if !animation.is_current(anim_state) {
+            animation.set_current(anim_state);
+        }
+        state.0.0.tick(time.delta());
+        if !state.0.0.finished() {
+            continue;
+        }
+
+        commands.entity(customer_entity)
+            .remove::<State<DrinkingTea>>()
+            .insert(State(Leaving));
+
+        drop_events.send(DropHeldEntity {
+            holder: customer_entity,
+        });
+
+        let mut rng = rand::thread_rng();
+        let door_entity = doors.iter().choose(&mut rng).unwrap();
+        commands.entity(customer_entity)
+            .insert(PathfindTarget::new(door_entity, true));
+    }
+}
+
+fn run_leave(
+    customers: Query<(
+        Entity, &Customer, Option<&PathfindTarget>, &Affection
+    ), (
+        With<State<Leaving>>, Without<Paused>
+    )>,
+    mut commands: Commands,
+    mut personalities: ResMut<Personalities>,
+) {
+    for (customer_entity, customer, target, affection) in &customers {
+        if target.is_some() {
+            continue;
+        }
+
+        // Persist any relationship changes that occurred during this visit.
+        let personality_data = personalities.data.get_mut(&customer.personality).unwrap();
+        personality_data.affection = affection.clone();
+        personality_data.visits += 1;
+
+        commands.entity(customer_entity).despawn();
+    }
 }
 
 #[derive(Component)]
 pub struct Customer {
-    pub state: CustomerState,
     pub expected: TeaRecipe,
     pub personality: Personality,
 }
@@ -282,12 +347,12 @@ fn spawn_customer_by_door(
         let affection = personalities.data[&personality].affection.clone();
         commands.spawn((
             Customer {
-                state: CustomerState::LookingForChair,
                 expected: menu.teas.iter().choose(&mut rng).cloned().unwrap(),
                 personality,
             },
             affection,
             Facing(FacingDirection::Down),
+            State(LookingForChair),
             AnimationData {
                 current_animation: AnimationState::WalkDown.into(),
                 facing_conversion,
@@ -322,7 +387,7 @@ fn interact_with_customers(
     mut customers: Query<(Entity, &Customer, &mut Affection)>,
     mut teapot: Query<&mut TeaPot>,
     asset_server: Res<AssetServer>,
-    mut game_state: ResMut<State<GameState>>,
+    mut game_state: ResMut<bevy::prelude::State<GameState>>,
     time: Res<Time>,
     mut commands: Commands,
 ) {
