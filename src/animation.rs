@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::entity::{Facing, FacingDirection};
+use crate::entity::{Facing, FacingDirection, Paused};
 use std::collections::HashMap;
 use std::default::Default;
 
@@ -79,7 +79,7 @@ fn animate_sprite(
         &AnimationData,
         &mut TextureAtlasSprite,
         &Handle<TextureAtlas>,
-    )>,
+    ), Without<Paused>>,
 ) {
     for (mut timer, data, mut sprite, handle) in &mut query {
         timer.tick(time.delta());
