@@ -39,7 +39,19 @@ fn main() {
 
     let mut app = App::new();
     app
-        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
+        .add_plugins(
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(WindowPlugin {
+                    window: WindowDescriptor {
+                        title: "since i found serenitea...".to_string(),
+                        ..default()
+                    },
+                    ..default()
+                })
+        )
+        //.add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
+        //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
         .add_plugin(TeaPlugin)
         .add_plugin(CustomerPlugin)
         .add_plugin(CatPlugin)
