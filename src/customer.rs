@@ -360,7 +360,7 @@ fn spawn_customer_by_door(
             Facing(FacingDirection::Down),
             State(LookingForChair),
             AnimationData {
-                current_animation: AnimationState::WalkDown.into(),
+                current_animation: AnimationState::StandDown.into(),
                 facing_conversion,
             },
             Interactable {

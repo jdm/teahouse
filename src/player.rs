@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::core_pipeline::clear_color::ClearColorConfig;
+use crate::animation::{AtlasAnimationData, AnimData, AnimationData};
 use crate::entity::{Facing, FacingDirection};
 use crate::geom::{TILE_SIZE, HasSize, MapSize, MapPos, map_to_screen};
 use crate::map::Map;
@@ -27,8 +28,23 @@ impl Plugin for PlayerPlugin {
             .add_startup_system(init_texture)
             .add_system(adjust_held_item)
             .add_system(spawn_player)
+            .add_system(stop_animation)
             .add_event::<SpawnPlayerEvent>();
     }
+}
+
+fn stop_animation(
+    mut query: Query<(&mut AnimationData, &Facing, &Movable), (With<Player>, Changed<Movable>)>,
+) {
+    if query.is_empty() {
+        return;
+    }
+
+    let (mut animation, facing, movable) = query.single_mut();
+    if movable.speed != Vec2::ZERO {
+        return;
+    }
+    animation.set_current(standing_conversion(facing.0));
 }
 
 fn adjust_held_item(
@@ -48,14 +64,32 @@ fn adjust_held_item(
 pub struct SpawnPlayerEvent(pub MapPos);
 
 #[derive(Resource)]
-struct PlayerTexture(Handle<Image>);
+struct PlayerTexture(Handle<TextureAtlas>);
 
 fn init_texture(
     asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut animation_data: ResMut<AtlasAnimationData>,
     mut commands: Commands,
 ) {
-    let people_handle = asset_server.load("people.png");
-    commands.insert_resource(PlayerTexture(people_handle));
+    let texture_handle = asset_server.load("player.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(TILE_SIZE, TILE_SIZE), 4, 4, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    animation_data.data.insert(
+        texture_atlas_handle.clone(),
+        vec![
+            AnimData { index: 0, frames: 4, delay: 0.1, },
+            AnimData { index: 4, frames: 4, delay: 0.1, },
+            AnimData { index: 8, frames: 4, delay: 0.1, },
+            AnimData { index: 12, frames: 4, delay: 0.1, },
+            AnimData { index: 0, frames: 1, delay: 1., },
+            AnimData { index: 4, frames: 1, delay: 1., },
+            AnimData { index: 8, frames: 1, delay: 1., },
+            AnimData { index: 12, frames: 1, delay: 1., },
+        ],
+    );
+    commands.insert_resource(PlayerTexture(texture_atlas_handle));
 }
 
 fn spawn_player(
@@ -82,13 +116,8 @@ fn spawn_player(
         let pos = Vec3::new(screen_rect.x, screen_rect.y, z);
         let transform = Transform::from_translation(pos);
 
-        let sprite = SpriteBundle {
-            sprite: Sprite {
-                custom_size: Some(screen_size),
-                rect: Some(Rect::new(0., 0., TILE_SIZE, TILE_SIZE)),
-                ..default()
-            },
-            texture: texture.0.clone(),
+        let sprite = SpriteSheetBundle {
+            texture_atlas: texture.0.clone(),
             transform,
             ..default()
         };
@@ -96,6 +125,10 @@ fn spawn_player(
         commands.spawn((
             Player::default(),
             Facing(FacingDirection::Down),
+            AnimationData {
+                current_animation: AnimationState::StandDown.into(),
+                facing_conversion,
+            },
             movable,
             sized,
             sprite,
@@ -109,3 +142,38 @@ fn spawn_player(
     }
 }
 
+#[derive(Copy, Clone)]
+enum AnimationState {
+    WalkDown = 0,
+    WalkRight = 1,
+    WalkLeft = 2,
+    WalkUp = 3,
+    StandDown = 4,
+    StandRight = 5,
+    StandLeft = 6,
+    StandUp = 7,
+}
+
+impl From<AnimationState> for usize {
+    fn from(state: AnimationState) -> usize {
+        state as usize
+    }
+}
+
+fn standing_conversion(facing: FacingDirection) -> AnimationState {
+    match facing {
+        FacingDirection::Up => AnimationState::StandUp,
+        FacingDirection::Down => AnimationState::StandDown,
+        FacingDirection::Right => AnimationState::StandRight,
+        FacingDirection::Left => AnimationState::StandLeft,
+    }
+}
+
+fn facing_conversion(facing: FacingDirection) -> usize {
+    match facing {
+        FacingDirection::Up => AnimationState::WalkUp,
+        FacingDirection::Down => AnimationState::WalkDown,
+        FacingDirection::Right => AnimationState::WalkRight,
+        FacingDirection::Left => AnimationState::WalkLeft,
+    }.into()
+}
