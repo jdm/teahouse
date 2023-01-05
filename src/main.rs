@@ -68,7 +68,7 @@ fn main() {
         .add_plugin(PlayerPlugin)
         .add_plugin(MenuPlugin)
         .add_plugin(PersonalityPlugin)
-        .add_state(GameState::InGame)
+        .add_state(GameState::Loading)
         .add_startup_system(setup)
         .add_system(bevy::window::close_on_esc);
 
@@ -95,6 +95,8 @@ fn handle_browser_resize(mut windows: ResMut<Windows>) {
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum GameState {
+    Loading,
+    Processing,
     InGame,
     Dialog,
 }

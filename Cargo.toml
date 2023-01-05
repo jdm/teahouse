@@ -7,11 +7,12 @@ edition = "2021"
 basic-pathfinding = { git = "https://github.com/jdm/basic-pathfinding", branch = "iterative" }
 
 [dependencies]
+anyhow = "1"
 basic-pathfinding = "0.2"
 rand = "0.8"
 rand_derive2 = "0.1"
 strum = { version = "0.24", features = ["derive"] }
-tiled = "0.10"
+tiled = { version = "0.10", default-features = false }
 
 [dependencies.bevy]
 version = "0.9"

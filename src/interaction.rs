@@ -192,6 +192,10 @@ fn keyboard_input(
     interactables: Query<(Entity, &Interactable)>,
     player_holding: Query<Option<&Holding>, With<Player>>,
 ) {
+    if q.is_empty() {
+        return;
+    }
+
     let (player_entity, mut movable, mut facing) = q.single_mut();
 
     if keys.pressed(KeyCode::Up) {

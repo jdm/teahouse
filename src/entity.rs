@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::GameState;
 use crate::animation::TextureResources;
 use crate::cat::{CatBed, SpawnCatEvent};
 use crate::geom::{HasSize, MapSize, TILE_SIZE, map_to_screen, MapPos};
@@ -9,7 +10,7 @@ use crate::player::SpawnPlayerEvent;
 use crate::tea::{SpawnTeapotEvent, spawn_cupboard, spawn_kettle, spawn_teastash, spawn_sink};
 use rand_derive2::RandGen;
 use std::default::Default;
-use tiled::{Loader, LayerType, PropertyValue, ObjectShape};
+use tiled::{LayerType, PropertyValue, ObjectShape};
 
 #[derive(Component)]
 pub struct Paused;
@@ -149,14 +150,27 @@ pub struct Chair;
 const STARTING_INGREDIENT_AMOUNT: u32 = 50;
 
 pub fn setup(
+    asset_server: Res<AssetServer>,
     mut commands: Commands,
-    map2: Res<Map>,
+) {
+    let map: Handle<crate::map::TiledMap> = asset_server.load("teahouse.tmx");
+    commands.insert_resource(Map {
+        width: 0,
+        height: 0,
+        handle: map,
+    });
+}
+
+pub fn setup2(
+    mut commands: Commands,
+    mut map2: ResMut<Map>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
     mut player_spawner: EventWriter<SpawnPlayerEvent>,
     mut cat_spawner: EventWriter<SpawnCatEvent>,
     ingredients: Res<StartingIngredients>,
+    assets: Res<Assets<crate::map::TiledMap>>,
 ) {
     let texture_handle2 = asset_server.load("interiors.png");
     let texture_atlas2 =
@@ -169,8 +183,11 @@ pub fn setup(
 
     let mut stashes_spawned = 0;
 
-    let mut loader = Loader::new();
-    let map = loader.load_tmx_map("assets/teahouse.tmx").unwrap();
+    let map = assets.get(&map2.handle).unwrap();
+    let map = &map.map;
+    map2.width = map.width as usize;
+    map2.height = map.height as usize;
+
     let mut z = 0.;
     for layer in map.layers() {
         let properties = &layer.properties;
@@ -292,4 +309,10 @@ pub fn setup(
     }
 
     commands.insert_resource(textures);
+}
+
+pub fn start_game(
+    mut game_state: ResMut<State<GameState>>,
+) {
+    game_state.set(GameState::InGame).unwrap();
 }

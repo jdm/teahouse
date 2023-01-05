@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.9" tiledversion="1.9.2" orientation="orthogonal" renderorder="right-down" width="30" height="15" tilewidth="32" tileheight="32" infinite="0" nextlayerid="12" nextobjectid="34">
- <tileset firstgid="1" source="interior.tsx"/>
+ <tileset firstgid="1" name="interior" tilewidth="32" tileheight="32" tilecount="768" columns="48">
+  <image source="interiors.png" width="1536" height="512"/>
+ </tileset>
+
+
  <layer id="1" name="Floor" width="30" height="15">
   <data encoding="csv">
 721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,721,
