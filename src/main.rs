@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::action::ActionPlugin;
 use crate::animation::AnimationPlugin;
 use crate::cat::CatPlugin;
 use crate::customer::CustomerPlugin;
@@ -14,7 +15,9 @@ use crate::pathfinding::PathfindingPlugin;
 use crate::personality::PersonalityPlugin;
 use crate::player::PlayerPlugin;
 use crate::tea::TeaPlugin;
+use crate::trigger::TriggerPlugin;
 
+mod action;
 mod animation;
 mod cat;
 mod customer;
@@ -31,6 +34,7 @@ mod pathfinding;
 mod personality;
 mod player;
 mod tea;
+mod trigger;
 
 fn main() {
     // When building for WASM, print panics to the browser console
@@ -68,6 +72,8 @@ fn main() {
         .add_plugin(PlayerPlugin)
         .add_plugin(MenuPlugin)
         .add_plugin(PersonalityPlugin)
+        .add_plugin(TriggerPlugin)
+        .add_plugin(ActionPlugin)
         .add_state(GameState::Loading)
         .add_startup_system(setup)
         .add_system(bevy::window::close_on_esc);
