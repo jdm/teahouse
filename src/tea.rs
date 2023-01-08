@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::utils::Instant;
+use crate::action::*;
 use crate::entity::Item;
 use crate::geom::{TILE_SIZE, MapSize, MapPos, HasSize, map_to_screen};
 use crate::interaction::{Interactable, PlayerInteracted, AutoPickUp};
@@ -7,6 +8,7 @@ use crate::map::Map;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::movable::Movable;
 use crate::player::Player;
+use crate::trigger::{Triggers, Trigger};
 use rand::Rng;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
@@ -21,7 +23,7 @@ impl Plugin for TeaPlugin {
             .add_startup_system(init_texture)
             .add_system(spawn_teapot)
             .add_system(interact_with_stash)
-            .add_system(interact_with_cupboards)
+            //.add_system(interact_with_cupboards)
             .add_system(interact_with_kettles)
             .add_system(use_dirty_teapot_with_sink);
     }
@@ -319,18 +321,45 @@ pub fn spawn_cupboard(
     movable: Movable,
     sized: HasSize,
     transform: Transform,
+    triggers: &mut Triggers,
 ) {
     let mut rng = rand::thread_rng();
-    commands.spawn((
+    let entity = commands.spawn((
         Cupboard { teapots: rng.gen_range(4..10) },
         Interactable {
-            message: "Press X to pick up teapot".to_string(),
+            message: "".to_string(),
             ..default()
         },
         movable,
         sized,
         transform,
-    ));
+    )).id();
+
+    triggers.add_trigger(
+        Trigger::immediate("setup_variables")
+            .action(Action::SetInt(SetIntVariable {
+                var: VarReference::local("teapots", entity),
+                value: rng.gen_range(4..10).into(),
+                add_to_self: false,
+            }))
+    );
+
+    triggers.add_trigger(
+        Trigger::player_proximity("near_cupboard", entity)
+            .action(Action::MessageLine(MessageLine {
+                message: "Press X to pick up teapot (${self.teapots} remaining)".to_string(),
+                entity: entity,
+            }))
+    );
+
+    // Conditional: variable is >0
+    // Conditional: player is holding something
+    // Add -1 to local variable
+    // Spawn teapot and pick it up
+    /*triggers.add_trigger(
+        Trigger::player_interact("use_cupboard", entity)
+            .action(
+    )*/
 }
 
 pub fn spawn_kettle(

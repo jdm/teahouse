@@ -6,6 +6,7 @@ use crate::map::Map;
 use crate::movable::Movable;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::player::{Holding, Player, SPEED};
+use crate::trigger::PlayerProximityEvent;
 
 pub struct InteractionPlugin;
 
@@ -69,6 +70,7 @@ fn highlight_interactable(
     player: Query<(&Transform, &Facing, &HasSize), (With<Player>, Or<(Changed<Transform>, Changed<Facing>)>)>,
     mut interactable: Query<(Entity, &mut Interactable, &Transform, &HasSize), Changed<Transform>>,
     mut status_events: EventWriter<StatusEvent>,
+    mut player_proximity_events: EventWriter<PlayerProximityEvent>,
     map: Res<Map>,
 ) {
     if player.is_empty() {
@@ -105,12 +107,14 @@ fn highlight_interactable(
         }
         if collision && !found {
             if !interactable.colliding {
-
+                player_proximity_events.send(PlayerProximityEvent(entity));
+                if !interactable.message.is_empty() {
                 status_events.send(StatusEvent::timed_message(
                     entity,
                     interactable.message.clone(),
                     DEFAULT_EXPIRY,
                 ));
+                }
             }
             interactable.colliding = true;
             found = true;

@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use crate::action::*;
 use crate::message_line::StatusEvent;
-use crate::player::Player;
 use std::default::Default;
 
 pub struct TriggerPlugin;
@@ -11,8 +10,9 @@ impl Plugin for TriggerPlugin {
         app
             .init_resource::<Triggers>()
             .add_event::<TriggerEvent>()
-            .add_event::<TriggerEvent2>()
+            .add_event::<PlayerProximityEvent>()
             .add_system(process_triggers)
+            .add_system(process_proximity)
             .add_startup_system(init_scripts);
     }
 }
@@ -20,6 +20,8 @@ impl Plugin for TriggerPlugin {
 pub enum TriggerCondition {
     Manual,
     Automatic,
+    PlayerProximity(Entity),
+    PlayerInteract(Entity),
 }
 
 pub struct Trigger {
@@ -28,8 +30,45 @@ pub struct Trigger {
     pub actions: Vec<Box<Action>>,
 }
 
+impl Trigger {
+    fn with_condition(label: String, condition: TriggerCondition) -> Trigger {
+        Self {
+            label,
+            condition,
+            actions: vec![],
+        }
+    }
+
+    pub fn immediate<T: Into<String>>(label: T) -> Trigger {
+        Self::with_condition(label.into(), TriggerCondition::Automatic)
+    }
+
+    pub fn player_proximity<T: Into<String>>(label: T, entity: Entity) -> Trigger {
+        Self::with_condition(label.into(), TriggerCondition::PlayerProximity(entity))
+    }
+
+    pub fn player_interact<T: Into<String>>(label: T, entity: Entity) -> Trigger {
+        Self::with_condition(label.into(), TriggerCondition::PlayerInteract(entity))
+    }
+
+    pub fn action(mut self, action: Action) -> Trigger {
+        self.actions.push(Box::new(action));
+        Trigger {
+            label: self.label,
+            condition: self.condition,
+            actions: self.actions,
+        }
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct Triggers(pub Vec<Trigger>);
+
+impl Triggers {
+    pub fn add_trigger(&mut self, trigger: Trigger) {
+        self.0.push(trigger);
+    }
+}
 
 fn init_scripts(
     mut triggers: ResMut<Triggers>,
@@ -39,18 +78,18 @@ fn init_scripts(
         condition: TriggerCondition::Automatic,
         actions: vec![
             Action::SetInt(SetIntVariable {
-                var: VarReference::global("times"),
+                var: VarReference::global(""),
                 value: 0.into(),
                 add_to_self: false,
             }).into(),
 
-            Action::ManualTrigger(
+            /*Action::ManualTrigger(
                 ManualTrigger::new("delay_message")
-            ).into(),
+            ).into(),*/
         ],
     });
 
-    triggers.0.push(Trigger {
+    /*triggers.0.push(Trigger {
         label: "delay_message".to_owned(),
         condition: TriggerCondition::Manual,
         actions: vec![
@@ -79,10 +118,28 @@ fn init_scripts(
                 ManualTrigger::new("delay_message")
             ).into(),
         ],
-    });
+    });*/
 }
 
-pub struct TriggerEvent(pub String);
+pub struct PlayerProximityEvent(pub Entity);
+
+fn process_proximity(
+    mut proximity_events: EventReader<PlayerProximityEvent>,
+    mut trigger_events: EventWriter<TriggerEvent>,
+    triggers: Res<Triggers>,
+) {
+    for event in proximity_events.iter() {
+        for trigger in &triggers.0 {
+            if let TriggerCondition::PlayerProximity(entity) = trigger.condition {
+                if entity == event.0 {
+                    trigger_events.send(TriggerEvent(trigger.label.clone(), Some(entity)))
+                }
+            }
+        }
+    }
+}
+
+pub struct TriggerEvent(pub String, pub Option<Entity>);
 
 fn process_triggers(
     mut triggered_events: ParamSet<(
@@ -94,17 +151,11 @@ fn process_triggers(
     mut triggers: ResMut<Triggers>,
     mut commands: Commands,
     mut variables: ResMut<VariableStorage>,
-    player: Query<Entity, With<Player>>,
 ) {
-    if player.is_empty() {
-        return;
-    }
-    let player = player.single();
-
     let mut previous_triggered_events = triggered_events.p0();
     let mut triggered = previous_triggered_events
         .iter()
-        .map(|event| event.0.clone())
+        .map(|event| (event.0.clone(), event.1.clone()))
         .collect::<Vec<_>>();
 
     let mut triggered_events = triggered_events.p1();
@@ -114,17 +165,21 @@ fn process_triggers(
         _commands: &mut commands,
         variables: &mut variables,
         timers: &mut scripted_timers,
-        player,
+        triggered_entity: None,
     };
 
     let mut to_remove = vec![];
     for (idx, trigger) in triggers.0.iter().enumerate() {
+        context.triggered_entity = None;
+
         if let TriggerCondition::Automatic = trigger.condition {
             to_remove.push(idx);
-            triggered.push(trigger.label.clone());
+            triggered.push((trigger.label.clone(), None));
         }
 
-        if triggered.contains(&trigger.label) {
+        let matching_trigger = triggered.iter().find(|(name, _)| *name == trigger.label);
+        if let Some((_, entity)) = matching_trigger {
+            context.triggered_entity = *entity;
             for action in &trigger.actions {
                 action.run(&mut context);
             }

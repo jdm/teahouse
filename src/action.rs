@@ -49,24 +49,34 @@ pub struct VariableStorage {
 
 pub struct MessageLine {
     pub message: String,
+    pub entity: Entity,
 }
 
 trait InterpolatedString {
-    fn eval(&self, variables: &VariableStorage) -> String;
+    fn eval(&self, variables: &VariableStorage, local: Option<Entity>) -> String;
 }
 
 impl InterpolatedString for String {
-    fn eval(&self, variables: &VariableStorage) -> String {
-        // TODO: support local variable substitution.
+    fn eval(&self, variables: &VariableStorage, local: Option<Entity>) -> String {
         let mut value = self.clone();
         while let Some(start) = value.find("${") {
             if let Some(end) = value[start..].find('}') {
                 let variable = &value[start..start+end+1];
                 let variable_name = &variable[2..variable.len() - 1];
-                let replacement = if variables.globals.strings.contains_key(variable_name) {
-                    variables.globals.get_string(variable_name)
+                let empty_variables = Variables::default();
+                let (variables, variable_name) = if variable_name.starts_with("self.") {
+                    let local_variables = match local {
+                        Some(entity) => variables.locals.get(&entity).unwrap_or(&empty_variables),
+                        None => &empty_variables,
+                    };
+                    (local_variables, &variable_name[5..])
                 } else {
-                    variables.globals.get_int(variable_name).to_string()
+                    (&variables.globals, variable_name)
+                };
+                let replacement = if variables.strings.contains_key(variable_name) {
+                    variables.get_string(variable_name)
+                } else {
+                    variables.get_int(variable_name).to_string()
                 };
                 value = value.replace(variable, &replacement);
             } else {
@@ -82,10 +92,10 @@ impl MessageLine {
         &self,
         variables: &VariableStorage,
         status_events: &mut EventWriter<StatusEvent>,
-        player: Entity,
+        local: Option<Entity>,
     ) {
-        let message = self.message.eval(variables);
-        status_events.send(StatusEvent::timed_message(player, message, DEFAULT_EXPIRY));
+        let message = self.message.eval(variables, local);
+        status_events.send(StatusEvent::timed_message(self.entity, message, DEFAULT_EXPIRY));
     }
 }
 
@@ -102,7 +112,6 @@ impl VarReference {
         }
     }
 
-    #[allow(dead_code)]
     pub fn local<T: Into<String>>(name: T, entity: Entity) -> Self {
         Self {
             name: name.into(),
@@ -267,7 +276,7 @@ fn process_timers(
     for (idx, timer) in timers.0.iter_mut().enumerate() {
         timer.0.tick(time.delta());
         if timer.0.finished() {
-            triggering_events.send(TriggerEvent(timer.1.clone()));
+            triggering_events.send(TriggerEvent(timer.1.clone(), None));
             to_remove.push(idx);
         }
     }
@@ -299,7 +308,7 @@ impl ManualTrigger {
     }
 
     fn run(&self, events: &mut EventWriter<TriggerEvent>) {
-        events.send(TriggerEvent(self.label.clone()));
+        events.send(TriggerEvent(self.label.clone(), None));
     }
 }
 
@@ -318,7 +327,7 @@ pub struct ActionContext<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     pub _commands: &'a mut Commands<'f, 'g>,
     pub variables: &'a mut VariableStorage,
     pub timers: &'a mut ScriptedTimers,
-    pub player: Entity,
+    pub triggered_entity: Option<Entity>,
 }
 
 impl Action {
@@ -326,7 +335,11 @@ impl Action {
         match self {
             Action::SetInt(action) => action.run(context.variables),
             Action::SetString(action) => action.run(context.variables),
-            Action::MessageLine(action) => action.run(context.variables, context.status_events, context.player),
+            Action::MessageLine(action) => action.run(
+                context.variables,
+                context.status_events,
+                context.triggered_entity,
+            ),
             Action::SetTimer(action) => action.run(context.variables, context.timers),
             Action::ManualTrigger(action) => action.run(context.events),
         }
