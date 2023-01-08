@@ -56,9 +56,24 @@ trait InterpolatedString {
 }
 
 impl InterpolatedString for String {
-    fn eval(&self, _variables: &VariableStorage) -> String {
-        //TODO
-        self.replace("$times", &_variables.globals.get_int("times").to_string())
+    fn eval(&self, variables: &VariableStorage) -> String {
+        // TODO: support local variable substitution.
+        let mut value = self.clone();
+        while let Some(start) = value.find("${") {
+            if let Some(end) = value[start..].find('}') {
+                let variable = &value[start..start+end+1];
+                let variable_name = &variable[2..variable.len() - 1];
+                let replacement = if variables.globals.strings.contains_key(variable_name) {
+                    variables.globals.get_string(variable_name)
+                } else {
+                    variables.globals.get_int(variable_name).to_string()
+                };
+                value = value.replace(variable, &replacement);
+            } else {
+                break;
+            }
+        }
+        value
     }
 }
 

@@ -73,7 +73,7 @@ fn init_scripts(
             }).into(),
 
             Action::MessageLine(MessageLine {
-                message: "This message has appeared $times times.".to_string(),
+                message: "This message has appeared ${times} times.".to_string(),
             }).into(),
 
             Action::ManualTrigger(
