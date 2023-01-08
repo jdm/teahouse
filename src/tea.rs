@@ -8,7 +8,7 @@ use crate::map::Map;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::movable::Movable;
 use crate::player::Player;
-use crate::trigger::{Triggers, Trigger};
+use crate::trigger::{Triggers, Trigger, RunActions};
 use rand::Rng;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
@@ -290,6 +290,7 @@ pub fn spawn_cupboard(
     sized: HasSize,
     transform: Transform,
     triggers: &mut Triggers,
+    run_actions: &mut EventWriter<RunActions>,
 ) {
     let mut rng = rand::thread_rng();
     let entity = commands.spawn((
@@ -303,13 +304,12 @@ pub fn spawn_cupboard(
         transform,
     )).id();
 
-    triggers.add_trigger(
-        Trigger::immediate("setup_variables")
-            .action(Action::SetInt(SetIntVariable {
-                var: VarReference::local("teapots", entity),
-                value: rng.gen_range(4..10).into(),
-                add_to_self: false,
-            }))
+    run_actions.send(
+        Action::SetInt(SetIntVariable {
+            var: VarReference::local("teapots", entity),
+            value: rng.gen_range(4..10).into(),
+            add_to_self: false,
+        }).into()
     );
 
     triggers.add_trigger(

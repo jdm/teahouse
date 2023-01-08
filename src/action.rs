@@ -106,6 +106,7 @@ pub struct VarReference {
 }
 
 impl VarReference {
+    #[allow(dead_code)]
     pub fn global<T: Into<String>>(name: T) -> Self {
         Self {
             name: name.into(),
@@ -302,6 +303,7 @@ pub struct ManualTrigger {
 }
 
 impl ManualTrigger {
+    #[allow(dead_code)]
     pub fn new<T: Into<String>>(label: T) -> Self {
         Self {
             label: label.into(),

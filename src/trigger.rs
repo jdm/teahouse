@@ -14,16 +14,17 @@ impl Plugin for TriggerPlugin {
             .init_resource::<Triggers>()
             .add_event::<TriggerEvent>()
             .add_event::<PlayerProximityEvent>()
+            .add_event::<RunActions>()
             .add_system(process_triggers)
             .add_system(process_proximity)
             .add_system(process_interacted)
-            .add_startup_system(init_scripts);
+            .add_system(run_immediate_actions);
     }
 }
 
+#[allow(dead_code)]
 pub enum TriggerCondition {
     Manual,
-    Automatic,
     PlayerProximity(Entity),
     PlayerInteract(Entity),
 }
@@ -41,10 +42,6 @@ impl Trigger {
             condition,
             actions: vec![],
         }
-    }
-
-    pub fn immediate<T: Into<String>>(label: T) -> Trigger {
-        Self::with_condition(label.into(), TriggerCondition::Automatic)
     }
 
     pub fn player_proximity<T: Into<String>>(label: T, entity: Entity) -> Trigger {
@@ -72,57 +69,6 @@ impl Triggers {
     pub fn add_trigger(&mut self, trigger: Trigger) {
         self.0.push(trigger);
     }
-}
-
-fn init_scripts(
-    mut triggers: ResMut<Triggers>,
-) {
-    triggers.0.push(Trigger {
-        label: "setup_vars".to_owned(),
-        condition: TriggerCondition::Automatic,
-        actions: vec![
-            Action::SetInt(SetIntVariable {
-                var: VarReference::global(""),
-                value: 0.into(),
-                add_to_self: false,
-            }).into(),
-
-            /*Action::ManualTrigger(
-                ManualTrigger::new("delay_message")
-            ).into(),*/
-        ],
-    });
-
-    /*triggers.0.push(Trigger {
-        label: "delay_message".to_owned(),
-        condition: TriggerCondition::Manual,
-        actions: vec![
-            Action::SetTimer(SetTimer {
-                delay: 7.into(),
-                trigger: "show_message".to_string(),
-            }).into(),
-        ],
-    });
-
-    triggers.0.push(Trigger {
-        label: "show_message".to_owned(),
-        condition: TriggerCondition::Manual,
-        actions: vec![
-            Action::SetInt(SetIntVariable {
-                var: VarReference::global("times"),
-                value: 1.into(),
-                add_to_self: true,
-            }).into(),
-
-            Action::MessageLine(MessageLine {
-                message: "This message has appeared ${times} times.".to_string(),
-            }).into(),
-
-            Action::ManualTrigger(
-                ManualTrigger::new("delay_message")
-            ).into(),
-        ],
-    });*/
 }
 
 pub struct PlayerProximityEvent(pub Entity);
@@ -169,18 +115,22 @@ fn process_triggers(
     mut status_events: EventWriter<StatusEvent>,
     mut spawn_teapot_events: EventWriter<SpawnTeapotEvent>,
     mut scripted_timers: ResMut<ScriptedTimers>,
-    mut triggers: ResMut<Triggers>,
+    triggers: Res<Triggers>,
     mut commands: Commands,
     mut variables: ResMut<VariableStorage>,
     player: Query<(Entity, Option<&Holding>), With<Player>>,
 ) {
+    let mut previous_triggered_events = triggered_events.p0();
+    if previous_triggered_events.is_empty() {
+        return;
+    }
+
     if player.is_empty() {
         return;
     }
     let (_player_entity, player_holding) = player.single();
 
-    let mut previous_triggered_events = triggered_events.p0();
-    let mut triggered = previous_triggered_events
+    let triggered = previous_triggered_events
         .iter()
         .map(|event| (event.0.clone(), event.1.clone()))
         .collect::<Vec<_>>();
@@ -197,14 +147,8 @@ fn process_triggers(
         player_holding: player_holding.is_some(),
     };
 
-    let mut to_remove = vec![];
-    for (idx, trigger) in triggers.0.iter().enumerate() {
+    for trigger in &triggers.0 {
         context.triggered_entity = None;
-
-        if let TriggerCondition::Automatic = trigger.condition {
-            to_remove.push(idx);
-            triggered.push((trigger.label.clone(), None));
-        }
 
         let matching_trigger = triggered.iter().find(|(name, _)| *name == trigger.label);
         if let Some((_, entity)) = matching_trigger {
@@ -214,8 +158,39 @@ fn process_triggers(
             }
         }
     }
+}
 
-    for idx in to_remove.into_iter().rev() {
-        triggers.0.remove(idx);
+pub struct RunActions(pub Vec<Box<Action>>);
+
+impl From<Action> for RunActions {
+    fn from(action: Action) -> Self {
+        Self(vec![action.into()])
+    }
+}
+
+fn run_immediate_actions(
+    mut actions: EventReader<RunActions>,
+    mut trigger_events: EventWriter<TriggerEvent>,
+    mut status_events: EventWriter<StatusEvent>,
+    mut spawn_teapot_events: EventWriter<SpawnTeapotEvent>,
+    mut scripted_timers: ResMut<ScriptedTimers>,
+    mut commands: Commands,
+    mut variables: ResMut<VariableStorage>,
+) {
+    let mut context = ActionContext {
+        events: &mut trigger_events,
+        status_events: &mut status_events,
+        spawn_teapot_events: &mut spawn_teapot_events,
+        _commands: &mut commands,
+        variables: &mut variables,
+        timers: &mut scripted_timers,
+        triggered_entity: None,
+        player_holding: false, //FIXME: should handle running before there is a player instead
+    };
+
+    for event in actions.iter() {
+        for action in &event.0 {
+            action.run(&mut context);
+        }
     }
 }

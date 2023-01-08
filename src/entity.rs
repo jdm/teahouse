@@ -8,7 +8,7 @@ use crate::movable::Movable;
 use crate::menu::{StartingIngredients, spawn_menu};
 use crate::player::SpawnPlayerEvent;
 use crate::tea::{SpawnTeapotEvent, spawn_cupboard, spawn_kettle, spawn_teastash, spawn_sink};
-use crate::trigger::Triggers;
+use crate::trigger::{RunActions, Triggers};
 use rand_derive2::RandGen;
 use std::default::Default;
 use tiled::{LayerType, PropertyValue, ObjectShape};
@@ -173,6 +173,7 @@ pub fn setup2(
     ingredients: Res<StartingIngredients>,
     assets: Res<Assets<crate::map::TiledMap>>,
     mut triggers: ResMut<Triggers>,
+    mut run_actions: EventWriter<RunActions>,
 ) {
     let texture_handle2 = asset_server.load("interiors.png");
     let texture_atlas2 =
@@ -295,7 +296,14 @@ pub fn setup2(
                             commands.spawn((Chair, sized, transform));
                         }
                         "cupboard" => {
-                            spawn_cupboard(&mut commands, movable, sized, transform, &mut triggers);
+                            spawn_cupboard(
+                                &mut commands,
+                                movable,
+                                sized,
+                                transform,
+                                &mut triggers,
+                                &mut run_actions,
+                            );
                         }
                         "menu" => {
                             spawn_menu(&mut commands, movable, sized, transform);
