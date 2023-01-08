@@ -1,6 +1,9 @@
 use bevy::prelude::*;
 use crate::action::*;
+use crate::interaction::PlayerInteracted;
 use crate::message_line::StatusEvent;
+use crate::player::{Player, Holding};
+use crate::tea::SpawnTeapotEvent;
 use std::default::Default;
 
 pub struct TriggerPlugin;
@@ -13,6 +16,7 @@ impl Plugin for TriggerPlugin {
             .add_event::<PlayerProximityEvent>()
             .add_system(process_triggers)
             .add_system(process_proximity)
+            .add_system(process_interacted)
             .add_startup_system(init_scripts);
     }
 }
@@ -139,6 +143,22 @@ fn process_proximity(
     }
 }
 
+fn process_interacted(
+    mut interacted_events: EventReader<PlayerInteracted>,
+    mut trigger_events: EventWriter<TriggerEvent>,
+    triggers: Res<Triggers>,
+) {
+    for event in interacted_events.iter() {
+        for trigger in &triggers.0 {
+            if let TriggerCondition::PlayerInteract(entity) = trigger.condition {
+                if entity == event.interacted_entity {
+                    trigger_events.send(TriggerEvent(trigger.label.clone(), Some(entity)))
+                }
+            }
+        }
+    }
+}
+
 pub struct TriggerEvent(pub String, pub Option<Entity>);
 
 fn process_triggers(
@@ -147,11 +167,18 @@ fn process_triggers(
         EventWriter<TriggerEvent>,
     )>,
     mut status_events: EventWriter<StatusEvent>,
+    mut spawn_teapot_events: EventWriter<SpawnTeapotEvent>,
     mut scripted_timers: ResMut<ScriptedTimers>,
     mut triggers: ResMut<Triggers>,
     mut commands: Commands,
     mut variables: ResMut<VariableStorage>,
+    player: Query<(Entity, Option<&Holding>), With<Player>>,
 ) {
+    if player.is_empty() {
+        return;
+    }
+    let (_player_entity, player_holding) = player.single();
+
     let mut previous_triggered_events = triggered_events.p0();
     let mut triggered = previous_triggered_events
         .iter()
@@ -162,10 +189,12 @@ fn process_triggers(
     let mut context = ActionContext {
         events: &mut triggered_events,
         status_events: &mut status_events,
+        spawn_teapot_events: &mut spawn_teapot_events,
         _commands: &mut commands,
         variables: &mut variables,
         timers: &mut scripted_timers,
         triggered_entity: None,
+        player_holding: player_holding.is_some(),
     };
 
     let mut to_remove = vec![];

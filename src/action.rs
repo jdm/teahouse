@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::message_line::{StatusEvent, DEFAULT_EXPIRY};
+use crate::tea::SpawnTeapotEvent;
 use crate::trigger::TriggerEvent;
 use rand::Rng;
 use std::collections::HashMap;
@@ -313,21 +314,103 @@ impl ManualTrigger {
 }
 
 #[allow(dead_code)]
+pub enum IntComparison {
+    LessThan,
+    LessThanEqual,
+    Equal,
+    NotEqual,
+    GreaterThanEqual,
+    GreaterThan,
+}
+
+pub enum Condition {
+    Int(IntOrIntVar, IntComparison, IntOrIntVar),
+    PlayerHolding,
+}
+
+impl Condition {
+    fn eval(&self, context: &ActionContext) -> bool {
+        match self {
+            Condition::Int(left, op, right) => {
+                let left = left.eval(context.variables);
+                let right = right.eval(context.variables);
+                match op {
+                    IntComparison::LessThan => left < right,
+                    IntComparison::LessThanEqual => left <= right,
+                    IntComparison::Equal => left == right,
+                    IntComparison::NotEqual => left != right,
+                    IntComparison::GreaterThanEqual => left >= right,
+                    IntComparison::GreaterThan => left > right,
+                }
+            }
+            Condition::PlayerHolding => context.player_holding,
+        }
+    }
+}
+
+pub struct ConditionalBranch {
+    pub condition: Condition,
+    pub actions: Vec<Box<Action>>,
+}
+
+pub struct Conditional {
+    pub branches: Vec<ConditionalBranch>,
+    pub default: Vec<Box<Action>>,
+}
+
+impl Conditional {
+    fn run(&self, context: &mut ActionContext) {
+        for branch in &self.branches {
+            if branch.condition.eval(context) {
+                for action in &branch.actions {
+                    action.run(context);
+                }
+                return;
+            }
+        }
+
+        for action in &self.default {
+            action.run(context);
+        }
+    }
+}
+
+pub enum Spawnable {
+    Teapot,
+}
+
+pub struct SpawnHolding {
+    pub entity_type: Spawnable,
+}
+
+impl SpawnHolding {
+    fn run(&self, context: &mut ActionContext) {
+        match self.entity_type {
+            Spawnable::Teapot => context.spawn_teapot_events.send(SpawnTeapotEvent::into_holding()),
+        }
+    }
+}
+
+#[allow(dead_code)]
 pub enum Action {
     SetInt(SetIntVariable),
     SetString(SetStringVariable),
     MessageLine(MessageLine),
     SetTimer(SetTimer),
     ManualTrigger(ManualTrigger),
+    Conditional(Conditional),
+    SpawnHolding(SpawnHolding),
 }
 
-pub struct ActionContext<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
+pub struct ActionContext<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i> {
     pub events: &'a mut EventWriter<'b, 'c, TriggerEvent>,
     pub status_events: &'a mut EventWriter<'d, 'e, StatusEvent>,
     pub _commands: &'a mut Commands<'f, 'g>,
+    pub spawn_teapot_events: &'a mut EventWriter<'h, 'i, SpawnTeapotEvent>,
     pub variables: &'a mut VariableStorage,
     pub timers: &'a mut ScriptedTimers,
     pub triggered_entity: Option<Entity>,
+    pub player_holding: bool,
 }
 
 impl Action {
@@ -342,6 +425,8 @@ impl Action {
             ),
             Action::SetTimer(action) => action.run(context.variables, context.timers),
             Action::ManualTrigger(action) => action.run(context.events),
+            Action::Conditional(action) => action.run(context),
+            Action::SpawnHolding(action) => action.run(context),
         }
     }
 }
