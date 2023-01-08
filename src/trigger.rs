@@ -13,7 +13,6 @@ impl Plugin for TriggerPlugin {
             .add_event::<TriggerEvent>()
             .add_event::<TriggerEvent2>()
             .add_system(process_triggers)
-            .add_system(process_triggers2)
             .add_startup_system(init_scripts);
     }
 }
@@ -85,20 +84,11 @@ fn init_scripts(
 
 pub struct TriggerEvent(pub String);
 
-pub struct TriggerEvent2(pub String);
-
-fn process_triggers2(
-    mut triggered_events: EventReader<TriggerEvent2>,
-    mut triggering_events: EventWriter<TriggerEvent>,
-) {
-    for event in triggered_events.iter() {
-        triggering_events.send(TriggerEvent(event.0.clone()));
-    }
-}
-
 fn process_triggers(
-    mut triggered_events: EventReader<TriggerEvent>,
-    mut triggering_events: EventWriter<TriggerEvent2>,
+    mut triggered_events: ParamSet<(
+        EventReader<TriggerEvent>,
+        EventWriter<TriggerEvent>,
+    )>,
     mut status_events: EventWriter<StatusEvent>,
     mut scripted_timers: ResMut<ScriptedTimers>,
     mut triggers: ResMut<Triggers>,
@@ -111,13 +101,15 @@ fn process_triggers(
     }
     let player = player.single();
 
-    let mut triggered = triggered_events
+    let mut previous_triggered_events = triggered_events.p0();
+    let mut triggered = previous_triggered_events
         .iter()
         .map(|event| event.0.clone())
         .collect::<Vec<_>>();
 
+    let mut triggered_events = triggered_events.p1();
     let mut context = ActionContext {
-        events: &mut triggering_events,
+        events: &mut triggered_events,
         status_events: &mut status_events,
         _commands: &mut commands,
         variables: &mut variables,

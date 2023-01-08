@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use crate::message_line::{StatusEvent, DEFAULT_EXPIRY};
-use crate::trigger::TriggerEvent2;
+use crate::trigger::TriggerEvent;
 use rand::Rng;
 use std::collections::HashMap;
 use std::default::Default;
@@ -258,7 +258,7 @@ pub struct SetTimer {
 pub struct ScriptedTimers(Vec<(Timer, String)>);
 
 fn process_timers(
-    mut triggering_events: EventWriter<TriggerEvent2>,
+    mut triggering_events: EventWriter<TriggerEvent>,
     mut timers: ResMut<ScriptedTimers>,
     time: Res<Time>,
 ) {
@@ -267,7 +267,7 @@ fn process_timers(
     for (idx, timer) in timers.0.iter_mut().enumerate() {
         timer.0.tick(time.delta());
         if timer.0.finished() {
-            triggering_events.send(TriggerEvent2(timer.1.clone()));
+            triggering_events.send(TriggerEvent(timer.1.clone()));
             to_remove.push(idx);
         }
     }
@@ -298,8 +298,8 @@ impl ManualTrigger {
         }
     }
 
-    fn run(&self, events: &mut EventWriter<TriggerEvent2>) {
-        events.send(TriggerEvent2(self.label.clone()));
+    fn run(&self, events: &mut EventWriter<TriggerEvent>) {
+        events.send(TriggerEvent(self.label.clone()));
     }
 }
 
@@ -313,7 +313,7 @@ pub enum Action {
 }
 
 pub struct ActionContext<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
-    pub events: &'a mut EventWriter<'b, 'c, TriggerEvent2>,
+    pub events: &'a mut EventWriter<'b, 'c, TriggerEvent>,
     pub status_events: &'a mut EventWriter<'d, 'e, StatusEvent>,
     pub _commands: &'a mut Commands<'f, 'g>,
     pub variables: &'a mut VariableStorage,
