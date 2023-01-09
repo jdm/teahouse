@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::utils::Instant;
-use crate::action::*;
 use crate::entity::Item;
 use crate::geom::{TILE_SIZE, MapSize, MapPos, HasSize, map_to_screen};
 use crate::interaction::{Interactable, PlayerInteracted, AutoPickUp};
@@ -8,7 +7,6 @@ use crate::map::Map;
 use crate::message_line::{DEFAULT_EXPIRY, StatusEvent};
 use crate::movable::Movable;
 use crate::player::Player;
-use crate::trigger::{Triggers, Trigger, RunActions};
 use rand::Rng;
 use rand_derive2::RandGen;
 use std::collections::HashMap;
@@ -23,6 +21,7 @@ impl Plugin for TeaPlugin {
             .add_startup_system(init_texture)
             .add_system(spawn_teapot)
             .add_system(interact_with_stash)
+            .add_system(interact_with_cupboards)
             .add_system(interact_with_kettles)
             .add_system(use_dirty_teapot_with_sink);
     }
@@ -122,6 +121,37 @@ fn interact_with_stash(
                 DEFAULT_EXPIRY,
             ));
         }
+    }
+}
+
+fn interact_with_cupboards(
+    mut player_interacted_events: EventReader<PlayerInteracted>,
+    mut cupboards: Query<&mut Cupboard>,
+    mut status_events: EventWriter<StatusEvent>,
+    teapot: Query<&TeaPot, With<Player>>,
+    mut teapot_spawner: EventWriter<SpawnTeapotEvent>,
+) {
+    for event in player_interacted_events.iter() {
+        let mut cupboard = match cupboards.get_mut(event.interacted_entity) {
+            Ok(result) => result,
+            Err(_) => continue,
+        };
+        let message = if cupboard.teapots > 0 {
+            if teapot.is_empty() {
+                cupboard.teapots -= 1;
+                teapot_spawner.send(SpawnTeapotEvent::into_holding());
+                format!("You take a teapot ({} left).", cupboard.teapots)
+            } else {
+                "You're already carrying a teapot.".to_string()
+            }
+        } else {
+            "No teapots remaining.".to_string()
+        };
+        status_events.send(StatusEvent::timed_message(
+            event.player_entity,
+            message.to_string(),
+            DEFAULT_EXPIRY,
+        ));
     }
 }
 
@@ -289,83 +319,18 @@ pub fn spawn_cupboard(
     movable: Movable,
     sized: HasSize,
     transform: Transform,
-    triggers: &mut Triggers,
-    run_actions: &mut EventWriter<RunActions>,
 ) {
     let mut rng = rand::thread_rng();
-    let entity = commands.spawn((
+    commands.spawn((
         Cupboard { teapots: rng.gen_range(4..10) },
         Interactable {
-            message: "".to_string(),
+            message: "Press X to pick up teapot".to_string(),
             ..default()
         },
         movable,
         sized,
         transform,
-    )).id();
-
-    run_actions.send(
-        Action::SetInt(SetIntVariable {
-            var: VarReference::local("teapots", entity),
-            value: rng.gen_range(4..10).into(),
-            add_to_self: false,
-        }).into()
-    );
-
-    triggers.add_trigger(
-        Trigger::player_proximity("near_cupboard", entity)
-            .action(Action::MessageLine(MessageLine {
-                message: "Press X to pick up teapot (${self.teapots} remaining)".to_string(),
-                entity: entity,
-            }))
-    );
-
-    triggers.add_trigger(
-        Trigger::player_interact("use_cupboard", entity)
-            .action(Action::Conditional(Conditional {
-                branches: vec![
-                    ConditionalBranch {
-                        condition: Condition::PlayerHolding,
-                        actions: vec![
-                            Action::MessageLine(MessageLine {
-                                message: "You're already carrying something.".to_string(),
-                                entity: entity,
-                            }).into()
-                        ],
-                    },
-
-                    ConditionalBranch {
-                        condition: Condition::Int(
-                            VarReference::local("teapots", entity).into(),
-                            IntComparison::Equal,
-                            0.into(),
-                        ),
-                        actions: vec![
-                            Action::MessageLine(MessageLine {
-                                message: "No teapots remaining.".to_string(),
-                                entity: entity,
-                            }).into()
-                        ],
-                    },
-                ],
-                default: vec![
-                    Action::SetInt(SetIntVariable {
-                        var: VarReference::local("teapots", entity).into(),
-                        value: IntOrIntVar::from(-1),
-                        add_to_self: true,
-                    }).into(),
-
-                    Action::SpawnHolding(SpawnHolding {
-                        entity_type: Spawnable::Teapot,
-                    }).into(),
-
-                    Action::MessageLine(MessageLine {
-                        message: "You take a teapot.".to_string(),
-                        entity: entity,
-                    }).into()
-                ],
-            }))
-    )
+    ));
 }
 
 pub fn spawn_kettle(

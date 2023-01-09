@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use bevy::prelude::*;
 use crate::message_line::{StatusEvent, DEFAULT_EXPIRY};
 use crate::tea::SpawnTeapotEvent;
