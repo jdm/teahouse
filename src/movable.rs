@@ -173,6 +173,7 @@ pub fn move_movables(
         let mut movable = q.get_mut(entity).unwrap();
         debug!("resetting speed for {:?}", entity);
         movable.speed = Vec2::ZERO;
+        movable.subtile_max = None;
     }
 
     let mut q = set.p2();
