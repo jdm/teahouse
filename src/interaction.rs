@@ -21,11 +21,8 @@ impl Plugin for InteractionPlugin {
             .add_event::<PlayerInteracted>()
             .add_event::<TransferHeldEntity>()
             .add_event::<DropHeldEntity>()
-            .add_system_set(
-                SystemSet::on_update(GameState::InGame)
-                    .with_system(keyboard_input)
-                    .with_system(highlight_interactable)
-            );
+            .add_system(keyboard_input.on_update(GameState::InGame))
+            .add_system(highlight_interactable);
     }
 }
 

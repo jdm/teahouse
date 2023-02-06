@@ -27,7 +27,7 @@ fn setup(
                     color: Color::WHITE,
                 },
             )
-                .with_text_alignment(TextAlignment::TOP_CENTER)
+                //.with_text_alignment(TextAlignment::TOP_CENTER)
                 .with_style(Style {
                     position_type: PositionType::Absolute,
                     position: UiRect {

@@ -123,7 +123,7 @@ pub struct MenuEntity;
 fn interact_with_menu(
     mut player_interacted_events: EventReader<PlayerInteracted>,
     menu_entity: Query<Entity, With<MenuEntity>>,
-    mut game_state: ResMut<State<GameState>>,
+    mut game_state: ResMut<NextState<GameState>>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     menu: Res<Menu>,
@@ -139,7 +139,7 @@ fn interact_with_menu(
                     dialogue
                 })
                 .collect();
-            game_state.set(GameState::Dialog).unwrap();
+            game_state.set(GameState::Dialog);
             show_message_box(menu_entity, &mut commands, conversation, &asset_server);
             return;
         }

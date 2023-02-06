@@ -406,11 +406,11 @@ pub enum Action {
     SpawnHolding(SpawnHolding),
 }
 
-pub struct ActionContext<'a, 'b, 'c, 'd, 'e, 'f, 'g, 'h, 'i> {
-    pub events: &'a mut EventWriter<'b, 'c, TriggerEvent>,
-    pub status_events: &'a mut EventWriter<'d, 'e, StatusEvent>,
+pub struct ActionContext<'a, 'b, 'd, 'f, 'g, 'h> {
+    pub events: &'a mut EventWriter<'b, TriggerEvent>,
+    pub status_events: &'a mut EventWriter<'d, StatusEvent>,
     pub _commands: &'a mut Commands<'f, 'g>,
-    pub spawn_teapot_events: &'a mut EventWriter<'h, 'i, SpawnTeapotEvent>,
+    pub spawn_teapot_events: &'a mut EventWriter<'h, SpawnTeapotEvent>,
     pub variables: &'a mut VariableStorage,
     pub timers: &'a mut ScriptedTimers,
     pub triggered_entity: Option<Entity>,

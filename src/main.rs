@@ -48,16 +48,17 @@ fn main() {
         .add_plugins(
             DefaultPlugins
                 .set(ImagePlugin::default_nearest())
-                .set(WindowPlugin {
+                /*.set(WindowPlugin {
                     window: WindowDescriptor {
                         title: "since i found serenitea...".to_string(),
                         ..default()
                     },
                     ..default()
-                })
+                })*/
         )
         //.add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
+        .add_state::<GameState>()
         .add_plugin(TeaPlugin)
         .add_plugin(CustomerPlugin)
         .add_plugin(CatPlugin)
@@ -74,7 +75,6 @@ fn main() {
         .add_plugin(PersonalityPlugin)
         .add_plugin(TriggerPlugin)
         .add_plugin(ActionPlugin)
-        .add_state(GameState::Loading)
         .add_startup_system(setup)
         .add_system(bevy::window::close_on_esc);
 
@@ -99,10 +99,19 @@ fn handle_browser_resize(mut windows: ResMut<Windows>) {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, Default)]
 pub enum GameState {
+    #[default]
     Loading,
     Processing,
     InGame,
     Dialog,
+}
+
+impl States for GameState {
+    type Iter = std::array::IntoIter<GameState, 4>;
+
+    fn variants() -> Self::Iter {
+       [GameState::Loading, GameState::Processing, GameState::InGame, GameState::Dialog].into_iter()
+   }
 }

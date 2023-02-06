@@ -392,7 +392,7 @@ fn interact_with_customers(
     mut customers: Query<(Entity, &Customer, &mut Affection)>,
     mut teapot: Query<&mut TeaPot>,
     asset_server: Res<AssetServer>,
-    mut game_state: ResMut<bevy::prelude::State<GameState>>,
+    mut game_state: ResMut<NextState<GameState>>,
     time: Res<Time>,
     mut commands: Commands,
 ) {
@@ -413,14 +413,14 @@ fn interact_with_customers(
 
                     let (reaction, conversation) = customer.tea_delivery(&teapot);
                     affection.react(reaction);
-                    game_state.set(GameState::Dialog).unwrap();
+                    game_state.set(GameState::Dialog);
                     show_message_box(customer_entity, &mut commands, conversation, &asset_server);
                     return;
                 }
             }
         }
 
-        game_state.set(GameState::Dialog).unwrap();
+        game_state.set(GameState::Dialog);
         show_message_box(customer_entity, &mut commands, customer.conversation(), &asset_server);
         return;
     }

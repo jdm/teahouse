@@ -11,18 +11,12 @@ impl Plugin for MapPlugin {
         app
             .add_asset::<TiledMap>()
             .add_asset_loader(TiledLoader)
-            .add_system_set(
-                SystemSet::on_update(crate::GameState::Loading)
-                    .with_system(transition_from_loading)
+            .add_system(transition_from_loading.on_update(crate::GameState::Loading))
+            .add_system_to_schedule(
+                OnEnter(crate::GameState::Processing),
+                crate::entity::setup2,
             )
-            .add_system_set(
-                SystemSet::on_enter(crate::GameState::Processing)
-                    .with_system(crate::entity::setup2)
-            )
-            .add_system_set(
-                SystemSet::on_update(crate::GameState::Processing)
-                    .with_system(crate::entity::start_game)
-            )
+            .add_system(crate::entity::start_game.on_update(crate::GameState::Processing))
             ;
     }
 }
@@ -30,10 +24,10 @@ impl Plugin for MapPlugin {
 fn transition_from_loading(
     map: Res<Map>,
     asset_server: Res<AssetServer>,
-    mut game_state: ResMut<State<crate::GameState>>,
+    mut game_state: ResMut<NextState<crate::GameState>>,
 ) {
     if asset_server.get_load_state(&map.handle) == LoadState::Loaded {
-        game_state.set(GameState::Processing).unwrap();
+        game_state.set(GameState::Processing);
     }
 }
 

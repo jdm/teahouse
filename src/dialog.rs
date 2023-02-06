@@ -7,13 +7,10 @@ pub struct DialogPlugin;
 impl Plugin for DialogPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_system_set(
-                SystemSet::on_update(GameState::Dialog)
-                    .with_system(run_dialog)
-            )
-            .add_system_set(
-                SystemSet::on_exit(GameState::Dialog)
-                    .with_system(exit_dialog)
+            .add_system(run_dialog.on_update(GameState::Dialog))
+            .add_system_to_schedule(
+                OnExit(GameState::Dialog),
+                exit_dialog,
             );
     }
 }
@@ -113,7 +110,7 @@ fn run_dialog(
     mut conversation: Query<&mut Conversation>,
     mut text_box: Query<&mut Text, With<MessageBox>>,
     keys: Res<Input<KeyCode>>,
-    mut game_state: ResMut<State<GameState>>,
+    mut game_state: ResMut<NextState<GameState>>,
 ) {
     let mut conversation = conversation.single_mut();
     let mut text_box = text_box.single_mut();
@@ -121,7 +118,7 @@ fn run_dialog(
     if keys.just_released(KeyCode::Space) {
         conversation.current += 1;
         if conversation.current == conversation.messages.len() {
-            game_state.set(GameState::InGame).unwrap();
+            game_state.set(GameState::InGame);
         } else {
             text_box.sections[0].value = conversation.messages[conversation.current].clone();
         }

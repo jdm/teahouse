@@ -15,7 +15,8 @@ strum = { version = "0.24", features = ["derive"] }
 tiled = { version = "0.10", default-features = false }
 
 [dependencies.bevy]
-version = "0.9"
+#version = "0.9"
+git = "https://github.com/bevyengine/bevy.git"
 default-features = false
 features = [
   "bevy_asset",

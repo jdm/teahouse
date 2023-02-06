@@ -317,7 +317,7 @@ pub fn setup2(
 }
 
 pub fn start_game(
-    mut game_state: ResMut<State<GameState>>,
+    mut game_state: ResMut<NextState<GameState>>,
 ) {
-    game_state.set(GameState::InGame).unwrap();
+    game_state.set(GameState::InGame);
 }
