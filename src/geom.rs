@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use crate::map::Map;
-use crate::movable::Movable;
 
 pub const TILE_SIZE: f32 = 32.0;
 
@@ -33,7 +32,7 @@ pub fn screen_to_map_pos(x: f32, y: f32, map: &Map, size: &MapSize) -> MapPos {
     screen_to_map_pos_inner(x, y, &MapSize { width: map.width, height: map.height }, size)
 }
 
-pub fn screen_to_map_pos_inner(x: f32, y: f32, map: &MapSize, size: &MapSize) -> MapPos {
+fn screen_to_map_pos_inner(x: f32, y: f32, map: &MapSize, size: &MapSize) -> MapPos {
     let x = (x - size.width as f32 * TILE_SIZE / 2.) / TILE_SIZE + map.width as f32 / 2.;
     let y = -((y + size.height as f32 * TILE_SIZE / 2.) / TILE_SIZE - map.height as f32 / 2.);
     //FIXME: Sometimes trigger on web when tab is ignored for long enough.
@@ -41,16 +40,6 @@ pub fn screen_to_map_pos_inner(x: f32, y: f32, map: &MapSize, size: &MapSize) ->
     //assert!(x >= 0.);
     //assert!(y >= 0.);
     MapPos { x: x as usize, y: y as usize }
-}
-
-#[allow(dead_code)]
-pub fn transform_to_screenrect(transform: &Transform, movable: &Movable) -> ScreenRect {
-    ScreenRect {
-        x: transform.translation.x,
-        y: transform.translation.y,
-        w: movable.size.x,
-        h: movable.size.y,
-    }
 }
 
 pub fn transform_to_map_pos(transform: &Transform, map: &Map, size: &MapSize) -> MapPos {

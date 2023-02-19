@@ -7,6 +7,7 @@ use crate::map::Map;
 use crate::movable::Movable;
 use crate::menu::{StartingIngredients, spawn_menu};
 use crate::player::SpawnPlayerEvent;
+use crate::stair::spawn_staircase;
 use crate::tea::{SpawnTeapotEvent, spawn_cupboard, spawn_kettle, spawn_teastash, spawn_sink};
 use rand_derive2::RandGen;
 use std::default::Default;
@@ -302,6 +303,27 @@ pub fn setup2(
                         }
                         "menu" => {
                             spawn_menu(&mut commands, movable, sized, transform);
+                        }
+                        "bookshelves" => {
+                        }
+                        "stairs" => {
+                            let id = match object.properties.get("id") {
+                                Some(PropertyValue::StringValue(id)) => id.to_owned(),
+                                p => {
+                                    warn!("Unsupported id property value: {:?}", p);
+                                    continue;
+                                }
+                            };
+
+                            let destination = match object.properties.get("destination") {
+                                Some(PropertyValue::StringValue(d)) => d.to_owned(),
+                                p => {
+                                    warn!("Unsupported destination property value: {:?}", p);
+                                    continue;
+                                }
+                            };
+
+                            spawn_staircase(&mut commands, movable, sized, transform, id, destination);
                         }
                         s => warn!("Ignoring unknown object kind: {}", s),
                     }

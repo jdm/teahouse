@@ -14,6 +14,7 @@ use crate::movable::MovablePlugin;
 use crate::pathfinding::PathfindingPlugin;
 use crate::personality::PersonalityPlugin;
 use crate::player::PlayerPlugin;
+use crate::stair::StairPlugin;
 use crate::tea::TeaPlugin;
 use crate::trigger::TriggerPlugin;
 
@@ -33,6 +34,7 @@ mod movable;
 mod pathfinding;
 mod personality;
 mod player;
+mod stair;
 mod tea;
 mod trigger;
 
@@ -75,6 +77,7 @@ fn main() {
         .add_plugin(TriggerPlugin)
         .add_plugin(ActionPlugin)
         .add_state(GameState::Loading)
+        .add_plugin(StairPlugin)
         .add_startup_system(setup)
         .add_system(bevy::window::close_on_esc);
 
