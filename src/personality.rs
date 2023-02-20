@@ -22,14 +22,6 @@ pub enum Personality {
     Xiaoshan,
 }
 
-/*enum Genre {
-    ScienceFiction,
-    Romance,
-    History,
-    Biography,
-    Sports,
-}*/
-
 #[derive(Default)]
 pub struct State {
     pub affection: Affection,

@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use crate::entity::Facing;
 use crate::geom::{HasSize, transform_to_map_pos, map_to_screen, TILE_SIZE};
-use crate::interaction::Interactable;
 use crate::map::Map;
 use crate::movable::Movable;
 use crate::player::Player;
@@ -50,7 +49,7 @@ fn stair_collide(
     if player.speed.x == 0.0 {
         return;
     }
-    for (stair, transform, size) in &all_stairs {
+    for (stair, transform, _size) in &all_stairs {
         let colliding = bevy::sprite::collide_aabb::collide(
             transform.translation,
             Vec2::splat(TILE_SIZE),

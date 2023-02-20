@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::GameState;
 use crate::animation::TextureResources;
+use crate::bookshelf::spawn_bookshelf;
 use crate::cat::{CatBed, SpawnCatEvent};
 use crate::geom::{HasSize, MapSize, TILE_SIZE, map_to_screen, MapPos};
 use crate::map::Map;
@@ -305,6 +306,7 @@ pub fn setup2(
                             spawn_menu(&mut commands, movable, sized, transform);
                         }
                         "bookshelves" => {
+                            spawn_bookshelf(&mut commands, movable, sized, transform);
                         }
                         "stairs" => {
                             let id = match object.properties.get("id") {

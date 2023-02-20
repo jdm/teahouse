@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::action::ActionPlugin;
 use crate::animation::AnimationPlugin;
+use crate::bookshelf::BookshelfPlugin;
 use crate::cat::CatPlugin;
 use crate::customer::CustomerPlugin;
 use crate::debug::DebugPlugin;
@@ -20,6 +21,7 @@ use crate::trigger::TriggerPlugin;
 
 mod action;
 mod animation;
+mod bookshelf;
 mod cat;
 mod customer;
 mod debug;
@@ -61,6 +63,7 @@ fn main() {
         //.add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
         .add_plugin(TeaPlugin)
+        .add_plugin(BookshelfPlugin)
         .add_plugin(CustomerPlugin)
         .add_plugin(CatPlugin)
         .add_plugin(InteractionPlugin)
